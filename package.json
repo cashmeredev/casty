@@ -2,13 +2,13 @@
   "name": "casty",
   "version": "0.1.0",
   "description": "TTY web browser using Playwright and Kitty graphics protocol",
-  "main": "index.js",
+  "main": "bin/casty.js",
   "bin": {
-    "casty": "./bin/casty.js"
+    "casty": "./bin/casty"
   },
   "scripts": {
-    "start": "node bin/casty.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "./bin/casty",
+    "postinstall": "echo 'Run ./bin/casty to auto-install Chromium to ~/.casty/browsers/'"
   },
   "keywords": [
     "browser",

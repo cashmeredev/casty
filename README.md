@@ -32,25 +32,30 @@ Chrome (Headless)          casty              Terminal
 
 - **Kitty graphics protocol** — kitty, Ghostty, or other compatible terminals
 - Node.js >= 18
-- Playwright (Chromium managed automatically)
 
 ## Installation
+
+```bash
+npm install -g casty
+```
+
+Chromium is automatically installed to `~/.casty/browsers/` on first run and kept up to date on subsequent launches. Only one version is kept at a time.
+
+### From source
 
 ```bash
 git clone https://github.com/sanohiro/casty.git
 cd casty
 npm install
-npx playwright install chromium
+./bin/casty
 ```
 
 ## Usage
 
 ```bash
-# Open a URL
-./bin/casty https://google.com
-
-# No argument opens Google
-./bin/casty
+casty https://google.com
+casty https://youtube.com
+casty   # opens Google
 ```
 
 ### Keybindings

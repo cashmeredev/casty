@@ -1,8 +1,42 @@
 #!/bin/bash
 # casty - TTY web browser
-# シェルラッパー: 自動更新 + 本体起動
+# シェルラッパー: Chromium 管理 + 本体起動
 
-CASTY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# シンボリックリンクを解決して実際のパスを取得
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+CASTY_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 
-# 本体起動
+export PLAYWRIGHT_BROWSERS_PATH="$HOME/.casty/browsers"
+STAMP="$HOME/.casty/.update-check"
+
+# Chromium インストール/更新
+install_chromium() {
+  npx --prefix "$CASTY_DIR" playwright install chromium 2>&1 | grep -v "^$" >&2
+  npx --prefix "$CASTY_DIR" playwright uninstall --unused 2>/dev/null
+  touch "$STAMP"
+}
+
+# 初回: ブラウザがなければインストール (ブロッキング)
+if [ ! -d "$PLAYWRIGHT_BROWSERS_PATH" ] || [ -z "$(ls -A "$PLAYWRIGHT_BROWSERS_PATH" 2>/dev/null)" ]; then
+  echo "casty: Installing Chromium (first run)..." >&2
+  install_chromium
+fi
+
+# 1日1回だけバックグラウンドで更新チェック
+needs_update() {
+  [ ! -f "$STAMP" ] && return 0
+  local last=$(stat -f %m "$STAMP" 2>/dev/null || echo 0)
+  local now=$(date +%s)
+  [ $(( now - last )) -gt 86400 ]
+}
+
+if needs_update; then
+  (install_chromium) &>/dev/null &
+fi
+
 exec node "$CASTY_DIR/bin/casty.js" "$@"
