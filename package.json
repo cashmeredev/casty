@@ -1,0 +1,31 @@
+{
+  "name": "casty",
+  "version": "0.1.0",
+  "description": "TTY web browser using Playwright and Kitty graphics protocol",
+  "main": "index.js",
+  "bin": {
+    "casty": "./bin/casty.js"
+  },
+  "scripts": {
+    "start": "node bin/casty.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "browser",
+    "tty",
+    "terminal",
+    "kitty",
+    "playwright",
+    "headless",
+    "chrome"
+  ],
+  "author": "Hironobu Sano",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}

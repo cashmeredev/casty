@@ -1,0 +1,8 @@
+#!/bin/bash
+# casty - TTY web browser
+# シェルラッパー: 自動更新 + 本体起動
+
+CASTY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 本体起動
+exec node "$CASTY_DIR/bin/casty.js" "$@"
