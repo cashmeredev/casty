@@ -14,10 +14,10 @@ CASTY_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export PLAYWRIGHT_BROWSERS_PATH="$HOME/.casty/browsers"
 STAMP="$HOME/.casty/.update-check"
 
-# Chromium インストール/更新
+# Chromium headless shell インストール/更新 (旧バージョンを削除して1世代だけ保持)
 install_chromium() {
-  npx --prefix "$CASTY_DIR" playwright install chromium 2>&1 | grep -v "^$" >&2
-  npx --prefix "$CASTY_DIR" playwright uninstall --unused 2>/dev/null
+  rm -rf "$PLAYWRIGHT_BROWSERS_PATH"
+  npx --prefix "$CASTY_DIR" playwright install chromium-headless-shell 2>&1 | grep -v "^$" >&2
   touch "$STAMP"
 }
 
