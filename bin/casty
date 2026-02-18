@@ -30,7 +30,7 @@ fi
 # 1日1回だけバックグラウンドで更新チェック
 needs_update() {
   [ ! -f "$STAMP" ] && return 0
-  local last=$(stat -f %m "$STAMP" 2>/dev/null || echo 0)
+  local last=$(stat -c %Y "$STAMP" 2>/dev/null || stat -f %m "$STAMP" 2>/dev/null || echo 0)
   local now=$(date +%s)
   [ $(( now - last )) -gt 86400 ]
 }

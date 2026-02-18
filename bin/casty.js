@@ -93,10 +93,15 @@ async function main() {
 
   const urlBar = startInputHandling(client, page, term.cellWidth, term.cellHeight, bindings, pauseRender);
 
+  let frameCount = 0;
   await startScreencast(client, {
     width: term.width,
     height: viewHeight,
     onFrame(data) {
+      frameCount++;
+      if (frameCount <= 3) {
+        console.error(`casty: frame #${frameCount} size=${data.length} head=${data.slice(0, 20)}`);
+      }
       if (renderPaused) return;
       cursorHome();
       sendFrame(data);
