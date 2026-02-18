@@ -25,6 +25,7 @@ Chrome (Headless)          casty              Terminal
 - Address bar with search (Alt+L)
 - Dynamic resize (SIGWINCH)
 - Configurable keybindings (`~/.casty/keys.json`)
+- Configurable home page and search engine (`~/.casty/config.json`)
 - File downloads to `~/Downloads/`
 - Loading indicator
 
@@ -55,7 +56,7 @@ npm install
 ```bash
 casty https://google.com
 casty https://youtube.com
-casty   # opens Google
+casty   # opens DuckDuckGo (default)
 ```
 
 ### Keybindings
@@ -68,14 +69,39 @@ casty   # opens Google
 | Ctrl+Q | Quit |
 | Ctrl+C | Quit (fallback) |
 
-Keybindings are customizable via `~/.casty/keys.json`.
+Customize via `~/.casty/keys.json` (file is not created automatically):
+
+```json
+{
+  "ctrl+q": "quit",
+  "alt+left": "back",
+  "alt+right": "forward",
+  "alt+l": "url_bar"
+}
+```
 
 ### Address Bar
 
-- **Alt+L** to focus — URL is selected, type to replace
-- **Enter** to navigate (URLs) or search (Google)
+- **Alt+L** or click row 1 to focus — URL is selected, type to replace
+- **Enter** to navigate (URLs) or search (Brave Search)
 - **Escape** to cancel
 - **Ctrl+A** select all, **Ctrl+U** clear, **Ctrl+W** delete word
+
+### Configuration
+
+Customize via `~/.casty/config.json` (file is not created automatically):
+
+```json
+{
+  "homeUrl": "https://github.com/sanohiro/casty",
+  "searchUrl": "https://search.brave.com/search?q="
+}
+```
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `homeUrl` | Page opened when no URL is given | `https://github.com/sanohiro/casty` |
+| `searchUrl` | Search engine URL (query appended) | `https://search.brave.com/search?q=` |
 
 ## Architecture
 
@@ -88,6 +114,7 @@ lib/
   kitty.js       # Kitty graphics protocol output
   input.js       # Mouse/keyboard handling, actions
   keys.js        # Configurable keybindings
+  config.js      # User configuration
   urlbar.js      # Address/search bar
 ```
 

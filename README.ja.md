@@ -25,6 +25,7 @@ Chrome (Headless)          casty              Terminal
 - アドレスバー + 検索 (Alt+L)
 - 動的リサイズ (SIGWINCH)
 - キーバインド設定 (`~/.casty/keys.json`)
+- ホームページ・検索エンジン設定 (`~/.casty/config.json`)
 - ファイルダウンロード (`~/Downloads/` に保存)
 - ローディングインジケーター
 
@@ -55,7 +56,7 @@ npm install
 ```bash
 casty https://google.com
 casty https://youtube.com
-casty   # Google を開く
+casty   # DuckDuckGo を開く (デフォルト)
 ```
 
 ### キーバインド
@@ -68,14 +69,39 @@ casty   # Google を開く
 | Ctrl+Q | 終了 |
 | Ctrl+C | 終了 (フォールバック) |
 
-`~/.casty/keys.json` でカスタマイズ可能。
+`~/.casty/keys.json` でカスタマイズ可能 (ファイルは自動生成されません):
+
+```json
+{
+  "ctrl+q": "quit",
+  "alt+left": "back",
+  "alt+right": "forward",
+  "alt+l": "url_bar"
+}
+```
 
 ### アドレスバー
 
-- **Alt+L** でフォーカス — URL が全選択状態になる
-- **Enter** で移動 (URL) または検索 (Google)
+- **Alt+L** または1行目クリックでフォーカス — URL が全選択状態になる
+- **Enter** で移動 (URL) または検索 (Brave Search)
 - **Escape** でキャンセル
 - **Ctrl+A** 全選択、**Ctrl+U** 全消去、**Ctrl+W** 単語削除
+
+### 設定
+
+`~/.casty/config.json` でカスタマイズ可能 (ファイルは自動生成されません):
+
+```json
+{
+  "homeUrl": "https://github.com/sanohiro/casty",
+  "searchUrl": "https://search.brave.com/search?q="
+}
+```
+
+| キー | 説明 | デフォルト |
+|------|------|-----------|
+| `homeUrl` | URL 未指定時に開くページ | `https://github.com/sanohiro/casty` |
+| `searchUrl` | 検索エンジン URL (クエリが末尾に付加される) | `https://search.brave.com/search?q=` |
 
 ## アーキテクチャ
 
@@ -88,6 +114,7 @@ lib/
   kitty.js       # Kitty graphics protocol 出力
   input.js       # マウス/キーボード処理、アクション
   keys.js        # キーバインド設定
+  config.js      # ユーザー設定
   urlbar.js      # アドレス/検索バー
 ```
 

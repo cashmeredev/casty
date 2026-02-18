@@ -5,8 +5,10 @@ import { launch, startScreencast, stopScreencast } from '../lib/browser.js';
 import { sendFrame, cursorHome, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp } from '../lib/kitty.js';
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
 import { loadKeyBindings } from '../lib/keys.js';
+import { loadConfig } from '../lib/config.js';
 
-const url = process.argv[2] || 'https://www.google.com';
+const config = loadConfig();
+const url = process.argv[2] || config.homeUrl;
 
 // 基準セルサイズ (96 DPI、標準的なターミナルフォント)
 // これより大きいセル → 拡大、小さいセル → 縮小
@@ -75,7 +77,7 @@ async function getTermInfo() {
 
 async function main() {
   const term = await getTermInfo();
-  console.error(`casty: ${term.width}x${term.height} zoom:${term.zoom.toFixed(2)} (cell ${term.cellWidth.toFixed(1)}x${term.cellHeight.toFixed(1)}), loading ${url}`);
+  console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)}`);
 
   // 1行目を URL バー用に確保、残りをブラウザ表示に使う
   const barHeight = Math.round(term.cellHeight);
@@ -93,15 +95,10 @@ async function main() {
 
   const urlBar = startInputHandling(client, page, term.cellWidth, term.cellHeight, bindings, pauseRender);
 
-  let frameCount = 0;
   await startScreencast(client, {
     width: term.width,
     height: viewHeight,
     onFrame(data) {
-      frameCount++;
-      if (frameCount <= 3) {
-        console.error(`casty: frame #${frameCount} size=${data.length} head=${data.slice(0, 20)}`);
-      }
       if (renderPaused) return;
       cursorHome();
       sendFrame(data);
@@ -110,7 +107,7 @@ async function main() {
   });
 
   async function shutdown() {
-    console.error('\ncasty: shutting down...');
+    console.error('casty: shutting down...');
     disableMouse();
     showCursor();
     clearScreen();
