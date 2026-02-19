@@ -36,13 +36,7 @@ Chrome (Headless)          casty              Terminal
 
 ## Installation
 
-```bash
-npm install -g casty
-```
-
-Chromium is automatically installed to `~/.casty/browsers/` on first run and kept up to date on subsequent launches. Only one version is kept at a time.
-
-### From source
+> **Note:** `npm install -g casty` is not yet available. Currently, install from source only. npm publishing is planned for a future release.
 
 ```bash
 git clone https://github.com/sanohiro/casty.git
@@ -51,12 +45,14 @@ npm install
 ./bin/casty
 ```
 
+Chromium (headless shell) is automatically installed to `~/.casty/browsers/` on first run and kept up to date on subsequent launches. Only one version is kept at a time.
+
 ## Usage
 
 ```bash
 casty https://google.com
 casty https://youtube.com
-casty   # opens DuckDuckGo (default)
+casty   # opens home page (default: casty GitHub page)
 ```
 
 ### Keybindings
@@ -122,7 +118,7 @@ lib/
 
 1. Launches headless Chrome via Playwright
 2. Starts CDP Screencast (PNG frames, not screenshots)
-3. Renders frames to terminal via Kitty graphics protocol (file transfer mode)
+3. Renders frames to terminal via Kitty graphics protocol (file transfer locally, inline over SSH)
 4. Captures terminal input (raw mode) and dispatches to Chrome via CDP
 5. Auto-detects terminal pixel size (CSI 14t) for zoom calculation
 

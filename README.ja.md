@@ -36,13 +36,7 @@ Chrome (Headless)          casty              Terminal
 
 ## インストール
 
-```bash
-npm install -g casty
-```
-
-初回起動時に Chromium が `~/.casty/browsers/` に自動インストールされます。以降の起動時にバックグラウンドで更新チェックし、常に一世代だけ保持します。
-
-### ソースから
+> **注意:** `npm install -g casty` はまだ利用できません。現在はソースからのインストールのみです。npm 公開は将来のリリースで予定しています。
 
 ```bash
 git clone https://github.com/sanohiro/casty.git
@@ -51,12 +45,14 @@ npm install
 ./bin/casty
 ```
 
+初回起動時に Chromium (headless shell) が `~/.casty/browsers/` に自動インストールされます。以降の起動時にバックグラウンドで更新チェックし、常に一世代だけ保持します。
+
 ## 使い方
 
 ```bash
 casty https://google.com
 casty https://youtube.com
-casty   # DuckDuckGo を開く (デフォルト)
+casty   # ホームページを開く (デフォルト: casty GitHub ページ)
 ```
 
 ### キーバインド
@@ -122,7 +118,7 @@ lib/
 
 1. Playwright 経由でヘッドレス Chrome を起動
 2. CDP Screencast を開始 (スクリーンショットではなく PNG フレームストリーム)
-3. Kitty graphics protocol (ファイル転送方式) でフレームをターミナルに描画
+3. Kitty graphics protocol でフレームをターミナルに描画 (ローカルはファイル転送、SSH 時はインライン方式を自動選択)
 4. ターミナル入力 (raw mode) をキャプチャし、CDP 経由で Chrome に送信
 5. CSI 14t でターミナルのピクセルサイズを自動検出し、ズームを計算
 
