@@ -14,11 +14,19 @@ CASTY_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export PLAYWRIGHT_BROWSERS_PATH="$HOME/.casty/browsers"
 STAMP="$HOME/.casty/.update-check"
 
-# Chromium headless shell インストール/更新 (旧バージョンを削除して1世代だけ保持)
+# Chromium headless shell インストール
 install_chromium() {
-  rm -rf "$PLAYWRIGHT_BROWSERS_PATH"
   npx --prefix "$CASTY_DIR" playwright install chromium-headless-shell 2>&1 | grep -v "^$" >&2
   touch "$STAMP"
+}
+
+# 古いブラウザバージョンを削除 (最新1つだけ残す)
+cleanup_old_browsers() {
+  local count=$(ls -d "$PLAYWRIGHT_BROWSERS_PATH"/*/ 2>/dev/null | wc -l)
+  [ "$count" -le 1 ] && return
+  # 最も古いディレクトリを削除
+  local oldest=$(ls -t -d "$PLAYWRIGHT_BROWSERS_PATH"/*/ 2>/dev/null | tail -1)
+  [ -n "$oldest" ] && rm -rf "$oldest"
 }
 
 # 初回: ブラウザがなければインストール (ブロッキング)
@@ -27,7 +35,7 @@ if [ ! -d "$PLAYWRIGHT_BROWSERS_PATH" ] || [ -z "$(ls -A "$PLAYWRIGHT_BROWSERS_P
   install_chromium
 fi
 
-# 1日1回だけバックグラウンドで更新チェック
+# 1日1回だけバックグラウンドで更新チェック (既存を消さずにインストール→古いのを掃除)
 needs_update() {
   [ ! -f "$STAMP" ] && return 0
   local last=$(stat -c %Y "$STAMP" 2>/dev/null || stat -f %m "$STAMP" 2>/dev/null || echo 0)
@@ -36,7 +44,7 @@ needs_update() {
 }
 
 if needs_update; then
-  (install_chromium) &>/dev/null &
+  (install_chromium && cleanup_old_browsers) &>/dev/null &
 fi
 
 exec node "$CASTY_DIR/bin/casty.js" "$@"
