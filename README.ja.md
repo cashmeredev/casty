@@ -1,6 +1,8 @@
 # casty
 
-Playwright と Kitty graphics protocol を使った TTY Web ブラウザ。
+> **アルファ版:** 現在 Playwright で Chrome を制御していますが、Playwright の自動操作フラグにより多くのサイトでボット検出が作動し、Google アカウントのログインもブロックされます。これらの制限を解消するため、Playwright を廃止し生の CDP (Chrome DevTools Protocol) で直接制御する大幅な書き直しを予定しています。
+
+Kitty graphics protocol を使った TTY Web ブラウザ。
 
 **[English](README.md)**
 

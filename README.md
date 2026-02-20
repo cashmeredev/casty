@@ -1,6 +1,8 @@
 # casty
 
-A TTY web browser powered by Playwright and Kitty graphics protocol.
+> **Alpha:** casty currently uses Playwright to control Chrome, but Playwright's automation flags trigger bot detection on many sites and block Google account login. A major rewrite is planned to replace Playwright with raw CDP (Chrome DevTools Protocol) to eliminate these limitations.
+
+A TTY web browser powered by Kitty graphics protocol.
 
 **[日本語](README.ja.md)**
 
