@@ -2,6 +2,8 @@
 
 A TTY web browser powered by Kitty graphics protocol.
 
+> **Alpha:** casty currently uses Playwright to control Chrome, but Playwright's automation flags trigger bot detection on many sites and block Google account login. A major rewrite is planned to replace Playwright with raw CDP (Chrome DevTools Protocol) to eliminate these limitations.
+
 **[日本語](README.ja.md)**
 
 casty renders full web pages in your terminal using Chrome's headless Screencast, bridging the gap between a headless browser and your Kitty-compatible terminal.
@@ -14,8 +16,6 @@ Chrome (Headless)          casty              Terminal
 │  Full browser   │ ←─── │  Input bridge   │ ←─│  Mouse/Keyboard │
 └─────────────────┘      └─────────────────┘  └─────────────────┘
 ```
-
-> **Alpha:** casty currently uses Playwright to control Chrome, but Playwright's automation flags trigger bot detection on many sites and block Google account login. A major rewrite is planned to replace Playwright with raw CDP (Chrome DevTools Protocol) to eliminate these limitations.
 
 ## Features
 
