@@ -19,7 +19,11 @@ detect_platform() {
   local os=$(uname -s)
   local arch=$(uname -m)
   case "$os" in
-    Linux)  echo "linux64" ;;
+    Linux)
+      case "$arch" in
+        aarch64|arm64) echo "linux-arm64" ;;  # Chrome for Testing にはないが検出用
+        *)             echo "linux64" ;;
+      esac ;;
     Darwin)
       case "$arch" in
         arm64) echo "mac-arm64" ;;
@@ -27,6 +31,31 @@ detect_platform() {
       esac ;;
     *) echo "linux64" ;;
   esac
+}
+
+# ARM64 Linux か判定 (Chrome for Testing にはバイナリがない)
+is_arm64_linux() {
+  [ "$(detect_platform)" = "linux-arm64" ]
+}
+
+# Playwright 経由で chromium-headless-shell をインストール (ARM64 Linux 用)
+install_chromium_playwright() {
+  echo "casty: Installing Chrome Headless Shell via Playwright..." >&2
+  if PLAYWRIGHT_BROWSERS_PATH="$BROWSERS_DIR" npx -y playwright install chromium-headless-shell 2>&1 >&2; then
+    touch "$STAMP"
+    # 古いバージョンを削除 (最新1つだけ残す)
+    local dirs=$(ls -t -d "$BROWSERS_DIR"/chromium_headless_shell-*/ 2>/dev/null)
+    local count=$(echo "$dirs" | wc -l)
+    if [ "$count" -gt 1 ]; then
+      echo "$dirs" | tail -n +2 | while read -r d; do rm -rf "$d"; done
+    fi
+    # Playwright が入れる ffmpeg も古いのを削除
+    local ffdirs=$(ls -t -d "$BROWSERS_DIR"/ffmpeg-*/ 2>/dev/null)
+    local ffcount=$(echo "$ffdirs" | wc -l)
+    if [ "$ffcount" -gt 1 ]; then
+      echo "$ffdirs" | tail -n +2 | while read -r d; do rm -rf "$d"; done
+    fi
+  fi
 }
 
 # Chrome for Testing API から chrome-headless-shell をダウンロード・インストール
@@ -116,18 +145,39 @@ cleanup_old_browsers() {
 
 # 初回: ブラウザがなければインストール (ブロッキング)
 has_chrome() {
-  # Chrome for Testing 形式
-  ls "$BROWSERS_DIR"/chrome-headless-shell-*/chrome-headless-shell &>/dev/null && return 0
-  # Playwright 形式にフォールバック
-  ls "$BROWSERS_DIR"/chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell &>/dev/null && return 0
+  # Chrome for Testing 形式 (ARM64 Linux はスキップ — x86_64 バイナリなので動かない)
+  if ! is_arm64_linux; then
+    ls "$BROWSERS_DIR"/chrome-headless-shell-*/chrome-headless-shell &>/dev/null && return 0
+  fi
+  # Playwright 形式 — 再帰的に探索 (バイナリ名: chrome-headless-shell or headless_shell)
+  find "$BROWSERS_DIR"/chromium_headless_shell-* \( -name 'chrome-headless-shell' -o -name 'headless_shell' \) -type f 2>/dev/null | grep -q . && return 0
   return 1
 }
 
+# システム Chrome/Chromium があるか
+has_system_chrome() {
+  command -v chromium-browser >/dev/null 2>&1 || \
+  command -v chromium >/dev/null 2>&1 || \
+  command -v google-chrome-stable >/dev/null 2>&1 || \
+  command -v google-chrome >/dev/null 2>&1
+}
+
 if ! has_chrome; then
-  install_chromium
+  if is_arm64_linux; then
+    # ARM64 Linux: Chrome for Testing にバイナリがないので Playwright 経由でインストール
+    install_chromium_playwright
+  else
+    install_chromium
+  fi
   if ! has_chrome; then
-    echo "casty: Chrome installation failed. Please check your network." >&2
-    exit 1
+    # Playwright も失敗した場合、システム Chromium にフォールバック
+    if ! has_system_chrome; then
+      echo "casty: Chrome not found." >&2
+      if is_arm64_linux; then
+        echo "casty: Install with: sudo apt install chromium-browser" >&2
+      fi
+      exit 1
+    fi
   fi
 fi
 
@@ -140,7 +190,11 @@ needs_update() {
 }
 
 if needs_update; then
-  (install_chromium && cleanup_old_browsers) &>/dev/null &
+  if is_arm64_linux; then
+    (install_chromium_playwright) &>/dev/null &
+  else
+    (install_chromium && cleanup_old_browsers) &>/dev/null &
+  fi
 fi
 
 exec node "$CASTY_DIR/bin/casty.js" "$@"

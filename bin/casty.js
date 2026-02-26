@@ -78,7 +78,10 @@ async function getTermInfo() {
 
 async function main() {
   // Phase 1: Chrome 起動とターミナル情報取得を並列実行
-  const [browser, term] = await Promise.all([startBrowser(), getTermInfo()]);
+  // getTermInfo() は必ず完了させる (CSI 14t 応答の漏れ防止)
+  const browserP = startBrowser();
+  const term = await getTermInfo();
+  const browser = await browserP;
 
   // 1行目を URL バー用に確保、残りをブラウザ表示に使う
   const barHeight = Math.round(term.cellHeight);
@@ -100,12 +103,10 @@ async function main() {
   // マウス座標は CSS ピクセルで送信 (cellWidth/zoom, cellHeight/zoom)
   const cssCellW = term.cellWidth / term.zoom;
   const cssCellH = term.cellHeight / term.zoom;
-  // format: auto → ファイル転送=jpeg, インライン=png
-  // jpeg はインラインでは使えない (format コードなし) → PNG にフォールバック
+  // format: auto → 常に PNG (Kitty protocol で最も互換性が高い)
+  // jpeg はファイル転送で使えるが対応ターミナルが限定的
   const fmt = config.format || 'auto';
-  const screenshotFormat = fmt === 'auto'
-    ? (transport === 'file' ? 'jpeg' : 'png')
-    : (fmt === 'jpeg' && transport !== 'file' ? 'png' : fmt);
+  const screenshotFormat = fmt === 'auto' ? 'png' : fmt;
 
   console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)} transport=${transport} format=${screenshotFormat}`);
 
@@ -126,9 +127,15 @@ async function main() {
   urlBar.render();
 
   // ページ読み込みイベントで強制キャプチャ
-  client.on('Page.domContentEventFired', () => forceCapture());
-  client.on('Page.loadEventFired', () => forceCapture());
-  client.on('Page.frameNavigated', () => forceCapture());
+  // 遅延キャプチャも追加: ページ描画完了後に確実にフレームを取得
+  function delayedCapture() {
+    forceCapture();
+    setTimeout(() => forceCapture(), 300);
+    setTimeout(() => forceCapture(), 1000);
+  }
+  client.on('Page.domContentEventFired', delayedCapture);
+  client.on('Page.loadEventFired', delayedCapture);
+  client.on('Page.frameNavigated', delayedCapture);
 
   // Phase 4: ナビゲーション
   client.send('Page.navigate', { url });
