@@ -1,6 +1,6 @@
 #!/bin/bash
 # casty - TTY web browser
-# シェルラッパー: Chromium 管理 + 本体起動
+# シェルラッパー: Chrome for Testing 管理 + 本体起動
 
 # シンボリックリンクを解決して実際のパスを取得
 SOURCE="${BASH_SOURCE[0]}"
@@ -11,31 +11,127 @@ while [ -L "$SOURCE" ]; do
 done
 CASTY_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 
-export PLAYWRIGHT_BROWSERS_PATH="$HOME/.casty/browsers"
+BROWSERS_DIR="$HOME/.casty/browsers"
 STAMP="$HOME/.casty/.update-check"
 
-# Chromium headless shell インストール
+# プラットフォーム自動検出
+detect_platform() {
+  local os=$(uname -s)
+  local arch=$(uname -m)
+  case "$os" in
+    Linux)  echo "linux64" ;;
+    Darwin)
+      case "$arch" in
+        arm64) echo "mac-arm64" ;;
+        *)     echo "mac-x64" ;;
+      esac ;;
+    *) echo "linux64" ;;
+  esac
+}
+
+# Chrome for Testing API から chrome-headless-shell をダウンロード・インストール
 install_chromium() {
-  npx --prefix "$CASTY_DIR" playwright install chromium-headless-shell 2>&1 | grep -v "^$" >&2
+  local platform=$(detect_platform)
+  local json_url="https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+
+  # JSON API から最新バージョンの URL を取得
+  local json=$(curl -fsSL "$json_url" 2>/dev/null)
+  if [ -z "$json" ]; then
+    echo "casty: Failed to fetch Chrome version info" >&2
+    return 1
+  fi
+
+  # jq がなくても動くよう node で JSON パース
+  local download_url=$(node -e "
+    const d = JSON.parse(process.argv[1]);
+    const hs = d.channels.Stable.downloads['chrome-headless-shell'];
+    const e = hs && hs.find(x => x.platform === '$platform');
+    if (e) console.log(e.url);
+  " "$json" 2>/dev/null)
+
+  if [ -z "$download_url" ]; then
+    echo "casty: No chrome-headless-shell for $platform" >&2
+    return 1
+  fi
+
+  # バージョン番号を抽出
+  local version=$(node -e "
+    const d = JSON.parse(process.argv[1]);
+    console.log(d.channels.Stable.version);
+  " "$json" 2>/dev/null)
+
+  local dest_dir="$BROWSERS_DIR/chrome-headless-shell-${version}"
+
+  # 既にインストール済みならスキップ
+  if [ -f "$dest_dir/chrome-headless-shell" ]; then
+    touch "$STAMP"
+    return 0
+  fi
+
+  echo "casty: Installing Chrome Headless Shell ${version}..." >&2
+
+  local tmp_zip=$(mktemp /tmp/casty-chrome-XXXXXX.zip)
+  # プログレスバー付きダウンロード (TTY ならバー表示、パイプなら非表示)
+  if [ -t 2 ]; then
+    curl -fL --progress-bar "$download_url" -o "$tmp_zip" 2>&1 >&2
+  else
+    curl -fsSL "$download_url" -o "$tmp_zip" 2>/dev/null
+  fi
+  if [ $? -ne 0 ]; then
+    rm -f "$tmp_zip"
+    echo "casty: Download failed" >&2
+    return 1
+  fi
+
+  mkdir -p "$BROWSERS_DIR"
+  # zip 内は chrome-headless-shell-<platform>/ ディレクトリに入っている
+  local tmp_dir=$(mktemp -d /tmp/casty-extract-XXXXXX)
+  unzip -q "$tmp_zip" -d "$tmp_dir" 2>/dev/null
+  rm -f "$tmp_zip"
+
+  # 展開されたディレクトリを見つけてリネーム
+  local extracted=$(ls -d "$tmp_dir"/chrome-headless-shell-* 2>/dev/null | head -1)
+  if [ -z "$extracted" ] || [ ! -f "$extracted/chrome-headless-shell" ]; then
+    rm -rf "$tmp_dir"
+    echo "casty: Extraction failed" >&2
+    return 1
+  fi
+
+  mv "$extracted" "$dest_dir"
+  rm -rf "$tmp_dir"
+  chmod +x "$dest_dir/chrome-headless-shell"
+
   touch "$STAMP"
+  echo "casty: Installed Chrome Headless Shell ${version}" >&2
 }
 
 # 古いブラウザバージョンを削除 (最新1つだけ残す)
 cleanup_old_browsers() {
-  local count=$(ls -d "$PLAYWRIGHT_BROWSERS_PATH"/*/ 2>/dev/null | wc -l)
+  local count=$(ls -d "$BROWSERS_DIR"/chrome-headless-shell-*/ 2>/dev/null | wc -l)
   [ "$count" -le 1 ] && return
   # 最も古いディレクトリを削除
-  local oldest=$(ls -t -d "$PLAYWRIGHT_BROWSERS_PATH"/*/ 2>/dev/null | tail -1)
+  local oldest=$(ls -t -d "$BROWSERS_DIR"/chrome-headless-shell-*/ 2>/dev/null | tail -1)
   [ -n "$oldest" ] && rm -rf "$oldest"
 }
 
 # 初回: ブラウザがなければインストール (ブロッキング)
-if [ ! -d "$PLAYWRIGHT_BROWSERS_PATH" ] || [ -z "$(ls -A "$PLAYWRIGHT_BROWSERS_PATH" 2>/dev/null)" ]; then
-  echo "casty: Installing Chromium (first run)..." >&2
+has_chrome() {
+  # Chrome for Testing 形式
+  ls "$BROWSERS_DIR"/chrome-headless-shell-*/chrome-headless-shell &>/dev/null && return 0
+  # Playwright 形式にフォールバック
+  ls "$BROWSERS_DIR"/chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell &>/dev/null && return 0
+  return 1
+}
+
+if ! has_chrome; then
   install_chromium
+  if ! has_chrome; then
+    echo "casty: Chrome installation failed. Please check your network." >&2
+    exit 1
+  fi
 fi
 
-# 1日1回だけバックグラウンドで更新チェック (既存を消さずにインストール→古いのを掃除)
+# 1日1回だけバックグラウンドで更新チェック
 needs_update() {
   [ ! -f "$STAMP" ] && return 0
   local last=$(stat -c %Y "$STAMP" 2>/dev/null || stat -f %m "$STAMP" 2>/dev/null || echo 0)

@@ -1,21 +1,21 @@
 {
   "name": "casty",
-  "version": "0.1.0",
-  "description": "TTY web browser using Playwright and Kitty graphics protocol",
+  "version": "0.3.0",
+  "description": "TTY web browser using raw CDP and Kitty graphics protocol",
   "main": "bin/casty.js",
   "bin": {
     "casty": "./bin/casty"
   },
   "scripts": {
     "start": "./bin/casty",
-    "postinstall": "echo 'Run ./bin/casty to auto-install Chromium to ~/.casty/browsers/'"
+    "postinstall": "echo 'Run ./bin/casty to auto-install Chrome Headless Shell to ~/.casty/browsers/'"
   },
   "keywords": [
     "browser",
     "tty",
     "terminal",
     "kitty",
-    "playwright",
+    "cdp",
     "headless",
     "chrome"
   ],
@@ -26,6 +26,6 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "playwright": "^1.40.0"
+    "ws": "^8.0.0"
   }
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// casty - TTY web browser using Playwright and Kitty graphics protocol
+// casty - TTY web browser using raw CDP and Kitty graphics protocol
 
-import { launch, startScreencast, stopScreencast } from '../lib/browser.js';
-import { sendFrame, cursorHome, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp } from '../lib/kitty.js';
+import { startBrowser, setupPage, startScreencast, stopScreencast } from '../lib/browser.js';
+import { sendFrame, cursorHome, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport } from '../lib/kitty.js';
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
 import { loadKeyBindings } from '../lib/keys.js';
 import { loadConfig } from '../lib/config.js';
@@ -62,13 +62,14 @@ async function getTermInfo() {
     const cellWidth = pixelSize.width / cols;
     const cellHeight = pixelSize.height / rows;
     const zoom = calcZoom(cellWidth);
-    return { width: pixelSize.width, height: pixelSize.height, cellWidth, cellHeight, zoom };
+    return { cols, rows, width: pixelSize.width, height: pixelSize.height, cellWidth, cellHeight, zoom };
   }
 
   const cellWidth = parseInt(process.env.CASTY_CELL_WIDTH) || 10;
   const cellHeight = parseInt(process.env.CASTY_CELL_HEIGHT) || 20;
   const zoom = calcZoom(cellWidth);
   return {
+    cols, rows,
     width: cols * cellWidth,
     height: rows * cellHeight,
     cellWidth, cellHeight, zoom,
@@ -76,14 +77,17 @@ async function getTermInfo() {
 }
 
 async function main() {
-  const term = await getTermInfo();
-  console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)}`);
+  // Phase 1: Chrome 起動とターミナル情報取得を並列実行
+  const [browser, term] = await Promise.all([startBrowser(), getTermInfo()]);
 
   // 1行目を URL バー用に確保、残りをブラウザ表示に使う
   const barHeight = Math.round(term.cellHeight);
   const viewHeight = term.height - barHeight;
 
-  const { browser, page, client } = await launch(url, { ...term, height: viewHeight });
+  // Phase 2: CDP 接続 + ページセットアップ (about:blank のまま)
+  const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight });
+  const chromeProcess = browser.proc;
+
   const bindings = loadKeyBindings();
 
   let renderPaused = false;
@@ -93,11 +97,23 @@ async function main() {
   clearScreen();
   enableMouse();
 
-  const urlBar = startInputHandling(client, page, term.cellWidth, term.cellHeight, bindings, pauseRender);
+  // マウス座標は CSS ピクセルで送信 (cellWidth/zoom, cellHeight/zoom)
+  const cssCellW = term.cellWidth / term.zoom;
+  const cssCellH = term.cellHeight / term.zoom;
+  // format: auto → ファイル転送=jpeg, インライン=png
+  // jpeg はインラインでは使えない (format コードなし) → PNG にフォールバック
+  const fmt = config.format || 'auto';
+  const screenshotFormat = fmt === 'auto'
+    ? (transport === 'file' ? 'jpeg' : 'png')
+    : (fmt === 'jpeg' && transport !== 'file' ? 'png' : fmt);
 
-  await startScreencast(client, {
-    width: term.width,
-    height: viewHeight,
+  console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)} transport=${transport} format=${screenshotFormat}`);
+
+  // Phase 3: Screencast 開始 (about:blank 上で先に起動)
+  let { forceCapture } = await startScreencast(client, {
+    width: cssWidth,
+    height: cssHeight,
+    format: screenshotFormat,
     onFrame(data) {
       if (renderPaused) return;
       cursorHome();
@@ -106,14 +122,30 @@ async function main() {
     },
   });
 
+  const urlBar = startInputHandling(client, cssCellW, cssCellH, bindings, pauseRender, forceCapture);
+  urlBar.render();
+
+  // ページ読み込みイベントで強制キャプチャ
+  client.on('Page.domContentEventFired', () => forceCapture());
+  client.on('Page.loadEventFired', () => forceCapture());
+  client.on('Page.frameNavigated', () => forceCapture());
+
+  // Phase 4: ナビゲーション
+  client.send('Page.navigate', { url });
+
   async function shutdown() {
     console.error('casty: shutting down...');
+    renderPaused = true;           // まず描画を止める
+    try {
+      await stopScreencast(client);  // screencast 停止 (pending capture も無効化)
+      await client.send('Browser.close').catch(() => {});
+    } catch {}
+    client.close();
+    chromeProcess.kill();
     disableMouse();
     showCursor();
-    clearScreen();
+    clearScreen();                 // 全停止後にクリア → 再描画される心配なし
     cleanupTmp();
-    await stopScreencast(client);
-    await browser.close();
     process.exit(0);
   }
 
@@ -124,24 +156,28 @@ async function main() {
   process.on('SIGWINCH', async () => {
     const t = await getTermInfo();
     const vh = t.height - Math.round(t.cellHeight);
-    console.error(`casty: resize ${t.width}x${vh} zoom:${t.zoom.toFixed(2)}`);
+    const cw = Math.round(t.width / t.zoom);
+    const ch = Math.round(vh / t.zoom);
+    console.error(`casty: resize ${cw}x${ch} (dev:${t.width}x${vh}) zoom:${t.zoom.toFixed(2)}`);
 
     clearScreen();
 
     await stopScreencast(client);
-    await page.setViewportSize({ width: t.width, height: vh });
-    await page.evaluate(v => { document.documentElement.style.zoom = v; }, t.zoom.toString()).catch(() => {});
+    await client.send('Emulation.setDeviceMetricsOverride', {
+      width: cw, height: ch, deviceScaleFactor: t.zoom, mobile: false,
+    });
 
-    await startScreencast(client, {
-      width: t.width,
-      height: vh,
+    ({ forceCapture } = await startScreencast(client, {
+      width: cw,
+      height: ch,
+      format: screenshotFormat,
       onFrame(data) {
         if (renderPaused) return;
         cursorHome();
         sendFrame(data);
         urlBar.render();
       },
-    });
+    }));
   });
 }
 

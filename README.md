@@ -2,38 +2,41 @@
 
 A TTY web browser powered by Kitty graphics protocol.
 
-> **Alpha:** casty currently uses Playwright to control Chrome, but Playwright's automation flags trigger bot detection on many sites and block Google account login. A major rewrite is planned to replace Playwright with raw CDP (Chrome DevTools Protocol) to eliminate these limitations.
-
 **[日本語](README.ja.md)**
 
-casty renders full web pages in your terminal using Chrome's headless Screencast, bridging the gap between a headless browser and your Kitty-compatible terminal.
+casty renders full web pages in your terminal using Chrome's headless rendering, bridging the gap between a headless browser and your Kitty-compatible terminal.
 
 ```
-Chrome (Headless)          casty              Terminal
+Chrome (Headless Shell)     casty              Terminal
 ┌─────────────────┐      ┌─────────────────┐  ┌─────────────────┐
-│  Web rendering  │ ───→ │  Screencast     │ ─→│  Kitty graphics │
-│  JS execution   │      │  PNG frames     │  │  display        │
+│  Web rendering  │ ───→ │  High-res       │ ─→│  Kitty graphics │
+│  JS execution   │      │  capture        │  │  display        │
 │  Full browser   │ ←─── │  Input bridge   │ ←─│  Mouse/Keyboard │
 └─────────────────┘      └─────────────────┘  └─────────────────┘
 ```
 
 ## Features
 
-- Full web rendering via headless Chrome
+- Full web rendering via headless Chrome (raw CDP, no Playwright)
+- Stealth patches to avoid bot detection (Google login works)
 - Kitty graphics protocol for image display
 - Mouse support (click, scroll, drag)
 - Keyboard passthrough to Chrome
-- Auto-zoom based on terminal font size
+- Vimium-style hint mode (Alt+F) for keyboard navigation
 - Address bar with search (Alt+L)
+- Bookmarks (`/b` search in address bar)
+- Copy selected text / paste from clipboard
+- Auto-zoom based on terminal font size
 - Dynamic resize (SIGWINCH)
 - Configurable keybindings (`~/.casty/keys.json`)
-- Configurable home page and search engine (`~/.casty/config.json`)
+- Configurable settings (`~/.casty/config.json`)
 - File downloads to `~/Downloads/`
 - Loading indicator
+- Fast startup with automatic profile cleanup
 
 ## Requirements
 
-- **Kitty graphics protocol** — kitty, Ghostty, or other compatible terminals
+- **Kitty graphics protocol** — kitty, Ghostty, bcon, or other compatible terminals
 - Node.js >= 18
 
 ## Installation
@@ -47,7 +50,7 @@ npm install
 ./bin/casty
 ```
 
-Chromium (headless shell) is automatically installed to `~/.casty/browsers/` on first run and kept up to date on subsequent launches. Only one version is kept at a time.
+Chrome Headless Shell is automatically installed to `~/.casty/browsers/` on first run and kept up to date on subsequent launches. Only one version is kept at a time.
 
 ## Usage
 
@@ -62,8 +65,11 @@ casty   # opens home page (default: casty GitHub page)
 | Key | Action |
 |-----|--------|
 | Alt+L | Open address bar |
+| Alt+F | Hint mode (Vimium-style link/button selection) |
 | Alt+Left | Back |
 | Alt+Right | Forward |
+| Alt+C | Copy selected text |
+| Ctrl+V | Paste from clipboard |
 | Ctrl+Q | Quit |
 | Ctrl+C | Quit (fallback) |
 
@@ -74,7 +80,10 @@ Customize via `~/.casty/keys.json` (file is not created automatically):
   "ctrl+q": "quit",
   "alt+left": "back",
   "alt+right": "forward",
-  "alt+l": "url_bar"
+  "alt+l": "url_bar",
+  "alt+f": "hints",
+  "alt+c": "copy",
+  "ctrl+v": "paste"
 }
 ```
 
@@ -82,8 +91,29 @@ Customize via `~/.casty/keys.json` (file is not created automatically):
 
 - **Alt+L** or click row 1 to focus — URL is selected, type to replace
 - **Enter** to navigate (URLs) or search (Brave Search)
+- **`/b query`** to search bookmarks
 - **Escape** to cancel
 - **Ctrl+A** select all, **Ctrl+U** clear, **Ctrl+W** delete word
+
+### Hint Mode
+
+Press **Alt+F** to show labels on clickable and focusable elements. Type the label characters to click a link/button or focus an input field. Press **Escape** to cancel.
+
+Labels use home-row keys (`a`, `s`, `d`, `f`, `j`, `k`, `l`) — single character for ≤7 elements, two characters for more (up to 49).
+
+### Bookmarks
+
+Create `~/.casty/bookmarks.json` manually:
+
+```json
+{
+  "GitHub": "https://github.com",
+  "Google": "https://google.com",
+  "YouTube": "https://youtube.com"
+}
+```
+
+Search from the address bar with `/b query` (matches name or URL, case-insensitive).
 
 ### Configuration
 
@@ -92,7 +122,9 @@ Customize via `~/.casty/config.json` (file is not created automatically):
 ```json
 {
   "homeUrl": "https://github.com/sanohiro/casty",
-  "searchUrl": "https://search.brave.com/search?q="
+  "searchUrl": "https://search.brave.com/search?q=",
+  "transport": "auto",
+  "format": "auto"
 }
 ```
 
@@ -100,29 +132,37 @@ Customize via `~/.casty/config.json` (file is not created automatically):
 |-----|-------------|---------|
 | `homeUrl` | Page opened when no URL is given | `https://github.com/sanohiro/casty` |
 | `searchUrl` | Search engine URL (query appended) | `https://search.brave.com/search?q=` |
+| `transport` | Kitty image transfer: `auto`, `file`, or `inline` | `auto` (bcon→file, others→inline) |
+| `format` | Screenshot format: `auto`, `png`, or `jpeg` | `auto` (file→jpeg, inline→png) |
 
 ## Architecture
 
 ```
 bin/
-  casty          # Shell wrapper
+  casty          # Shell wrapper (Chrome install/update)
   casty.js       # Entry point (terminal detection, zoom, resize)
 lib/
-  browser.js     # Playwright/CDP control (launch, screencast)
-  kitty.js       # Kitty graphics protocol output
+  browser.js     # CDP browser control (launch, screencast, capture)
+  cdp.js         # Lightweight CDP WebSocket client
+  chrome.js      # Chrome binary detection, launch, profile cleanup
+  kitty.js       # Kitty graphics protocol output (file/inline)
   input.js       # Mouse/keyboard handling, actions
+  hints.js       # Vimium-style hint mode
+  urlbar.js      # Address/search bar
+  bookmarks.js   # Bookmark search
   keys.js        # Configurable keybindings
   config.js      # User configuration
-  urlbar.js      # Address/search bar
 ```
 
 ## How It Works
 
-1. Launches headless Chrome via Playwright
-2. Starts CDP Screencast (PNG frames, not screenshots)
-3. Renders frames to terminal via Kitty graphics protocol (file transfer locally, inline over SSH)
-4. Captures terminal input (raw mode) and dispatches to Chrome via CDP
-5. Auto-detects terminal pixel size (CSI 14t) for zoom calculation
+1. Launches Chrome Headless Shell via raw CDP (no Playwright, no `Runtime.enable`)
+2. Injects stealth patches before page load to avoid bot detection
+3. Uses hybrid frame capture: low-res Screencast as change detection trigger, `Page.captureScreenshot` for high-res frames
+4. Renders frames to terminal via Kitty graphics protocol
+5. Captures terminal input (raw mode) and dispatches to Chrome via CDP
+6. Auto-detects terminal pixel size (CSI 14t) for zoom calculation
+7. Cleans up profile on startup (keeps cookies/storage, removes caches) for fast launch
 
 ## License
 
