@@ -182,6 +182,8 @@ async function main() {
 }
 
 main().catch((err) => {
+  // stdin を raw mode から復帰 (CSI 14t 応答の漏れを防止)
+  try { process.stdin.setRawMode(false); process.stdin.pause(); } catch {}
   console.error('casty: error:', err.message);
   disableMouse();
   showCursor();
