@@ -45,7 +45,12 @@ Chrome (Headless Shell)     casty              Terminal
 
 ## インストール
 
-> **注意:** `npm install -g casty` はまだ利用できません。現在はソースからのインストールのみです。npm 公開は将来のリリースで予定しています。
+```bash
+npm install -g @sanohiro/casty
+casty
+```
+
+ソースからインストールする場合:
 
 ```bash
 git clone https://github.com/sanohiro/casty.git

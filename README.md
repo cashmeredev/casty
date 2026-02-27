@@ -45,7 +45,12 @@ Tested on: **bcon**, **Ghostty**, **kitty**
 
 ## Installation
 
-> **Note:** `npm install -g casty` is not yet available. Currently, install from source only. npm publishing is planned for a future release.
+```bash
+npm install -g @sanohiro/casty
+casty
+```
+
+Or install from source:
 
 ```bash
 git clone https://github.com/sanohiro/casty.git

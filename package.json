@@ -1,14 +1,19 @@
 {
-  "name": "casty",
+  "name": "@sanohiro/casty",
   "version": "0.5.0",
   "description": "TTY web browser using raw CDP and Kitty graphics protocol",
   "main": "bin/casty.js",
   "bin": {
-    "casty": "./bin/casty"
+    "casty": "bin/casty"
   },
+  "files": [
+    "bin/",
+    "lib/",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "./bin/casty",
-    "postinstall": "echo 'Run ./bin/casty to auto-install Chrome Headless Shell to ~/.casty/browsers/'"
+    "postinstall": "echo 'Run casty to auto-install Chrome Headless Shell to ~/.casty/browsers/'"
   },
   "keywords": [
     "browser",
@@ -19,6 +24,11 @@
     "headless",
     "chrome"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sanohiro/casty.git"
+  },
+  "homepage": "https://github.com/sanohiro/casty",
   "author": "Hironobu Sano",
   "license": "MIT",
   "type": "module",
