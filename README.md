@@ -36,8 +36,10 @@ Chrome (Headless Shell)     casty              Terminal
 
 ## Requirements
 
-- **Kitty graphics protocol** — kitty, Ghostty, bcon, or other compatible terminals
-- Node.js >= 18
+- **Kitty graphics protocol** compatible terminal
+- Node.js >= 22
+
+Tested on: **bcon**, **Ghostty**, **kitty**
 
 ## Installation
 

@@ -2,62 +2,74 @@
 // casty - TTY web browser using raw CDP and Kitty graphics protocol
 
 import { startBrowser, setupPage, startScreencast, stopScreencast } from '../lib/browser.js';
-import { sendFrame, cursorHome, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport } from '../lib/kitty.js';
+import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport } from '../lib/kitty.js';
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
 import { loadKeyBindings } from '../lib/keys.js';
 import { loadConfig } from '../lib/config.js';
 
 const config = loadConfig();
+const bindings = loadKeyBindings();
 const url = process.argv[2] || config.homeUrl;
 
-// 基準セルサイズ (96 DPI、標準的なターミナルフォント)
-// これより大きいセル → 拡大、小さいセル → 縮小
+const TERM_QUERY_TIMEOUT = 1000;  // CSI 14t response timeout (ms)
+
+// Delayed capture timings after page navigation (ms)
+const DELAYED_CAPTURE_MS = [0, 300, 1000];
+
+// Reference cell size (96 DPI, standard terminal font)
+// Larger cells → zoom in, smaller cells → zoom out
 const REF_CELL_WIDTH = 8;
 
-// セルサイズから zoom を自動計算
+// Auto-calculate zoom from cell size
 function calcZoom(cellWidth) {
   return cellWidth / REF_CELL_WIDTH;
 }
 
-// ターミナルのピクセルサイズを CSI 14 t で取得
-function queryTermPixelSize() {
+// Query terminal pixel size via CSI 14t
+// keepAlive: true when called during operation (SIGWINCH) — don't touch stdin state
+function queryTermPixelSize({ keepAlive = false } = {}) {
   if (!process.stdin.isTTY) return Promise.resolve(null);
 
-  return new Promise((resolve) => {
-    const wasRaw = process.stdin.isRaw;
-    const timeout = setTimeout(() => {
-      process.stdin.removeListener('data', onData);
+  const { promise, resolve } = Promise.withResolvers();
+  const wasRaw = process.stdin.isRaw;
+  const timeout = setTimeout(() => {
+    process.stdin.removeListener('data', onData);
+    if (!keepAlive) {
       process.stdin.setRawMode(wasRaw);
       process.stdin.pause();
-      resolve(null);
-    }, 1000);
+    }
+    resolve(null);
+  }, TERM_QUERY_TIMEOUT);
 
+  if (!keepAlive) {
     process.stdin.setRawMode(true);
     process.stdin.resume();
+  }
 
-    let buf = '';
-    const onData = (data) => {
-      buf += data.toString();
-      const match = buf.match(/\x1b\[4;(\d+);(\d+)t/);
-      if (match) {
-        clearTimeout(timeout);
-        process.stdin.removeListener('data', onData);
-        process.stdin.setRawMode(wasRaw);
-        resolve({ height: parseInt(match[1]), width: parseInt(match[2]) });
-      }
-    };
-    process.stdin.on('data', onData);
+  let buf = '';
+  const onData = (data) => {
+    buf += data.toString();
+    const match = buf.match(/\x1b\[4;(\d+);(\d+)t/);
+    if (match) {
+      clearTimeout(timeout);
+      process.stdin.removeListener('data', onData);
+      if (!keepAlive) process.stdin.setRawMode(wasRaw);
+      resolve({ height: parseInt(match[1]), width: parseInt(match[2]) });
+    }
+  };
+  process.stdin.on('data', onData);
 
-    process.stdout.write('\x1b[14t');
-  });
+  process.stdout.write('\x1b[14t');
+  return promise;
 }
 
-// ターミナル情報を取得
-async function getTermInfo() {
+// Get terminal info
+// keepAlive: true during operation (SIGWINCH) to avoid killing stdin
+async function getTermInfo({ keepAlive = false } = {}) {
   const cols = process.stdout.columns || 80;
   const rows = process.stdout.rows || 24;
 
-  const pixelSize = await queryTermPixelSize();
+  const pixelSize = await queryTermPixelSize({ keepAlive });
   if (pixelSize) {
     const cellWidth = pixelSize.width / cols;
     const cellHeight = pixelSize.height / rows;
@@ -77,21 +89,25 @@ async function getTermInfo() {
 }
 
 async function main() {
-  // Phase 1: Chrome 起動とターミナル情報取得を並列実行
-  // getTermInfo() は必ず完了させる (CSI 14t 応答の漏れ防止)
+  // Phase 1: Launch Chrome and get terminal info in parallel
+  // getTermInfo() must complete fully (prevent CSI 14t response leak)
   const browserP = startBrowser();
   const term = await getTermInfo();
   const browser = await browserP;
 
-  // 1行目を URL バー用に確保、残りをブラウザ表示に使う
+  // Reserve line 1 for URL bar, use the rest for browser display
   const barHeight = Math.round(term.cellHeight);
   const viewHeight = term.height - barHeight;
 
-  // Phase 2: CDP 接続 + ページセットアップ (about:blank のまま)
+  // Phase 2: CDP connection + page setup
   const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight });
   const chromeProcess = browser.proc;
 
-  const bindings = loadKeyBindings();
+  // Log WebSocket errors to stderr (prevent unhandled crash)
+  client.on('error', (err) => { console.error('casty: CDP error:', err.message); });
+
+  // Navigate immediately (before screencast) to avoid showing previous session's page
+  client.send('Page.navigate', { url }).catch(e => console.error('casty: navigate error:', e.message));
 
   let renderPaused = false;
   const pauseRender = (p = true) => { renderPaused = p; };
@@ -100,58 +116,71 @@ async function main() {
   clearScreen();
   enableMouse();
 
-  // マウス座標は CSS ピクセルで送信 (cellWidth/zoom, cellHeight/zoom)
-  const cssCellW = term.cellWidth / term.zoom;
-  const cssCellH = term.cellHeight / term.zoom;
-  // format: auto → 常に PNG (Kitty protocol で最も互換性が高い)
-  // jpeg はファイル転送で使えるが対応ターミナルが限定的
+  // Mouse coordinates in device pixels
+  // headless-shell with deviceScaleFactor doesn't properly scale Input coordinates,
+  // so we send device pixel values directly instead of CSS pixels (cellWidth/zoom)
+  const cssCellW = term.cellWidth;
+  const cssCellH = term.cellHeight;
+  // format: auto → PNG for inline, JPEG (adaptive) for file transfer
+  // jpeg mode: fast JPEG during activity, PNG refinement when static
   const fmt = config.format || 'auto';
-  const screenshotFormat = fmt === 'auto' ? 'png' : fmt;
+  const screenshotFormat = fmt === 'auto'
+    ? (transport === 'file' ? 'jpeg' : 'png')
+    : fmt;
 
-  console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)} transport=${transport} format=${screenshotFormat}`);
+  console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)} transport=${transport} format=${screenshotFormat}${screenshotFormat === 'jpeg' ? ' (adaptive)' : ''}`);
 
-  // Phase 3: Screencast 開始 (about:blank 上で先に起動)
-  let { forceCapture } = await startScreencast(client, {
+  // Frame callback for screencast / captureScreenshot
+  // sendFrame includes cursor positioning (single write)
+  function onFrame(data) {
+    if (renderPaused) return;
+    sendFrame(data);
+    urlBar.renderIfDirty();
+  }
+
+  // Phase 3: Start screencast
+  let { forceCapture, cleanup: screencastCleanup } = await startScreencast(client, {
     width: cssWidth,
     height: cssHeight,
     format: screenshotFormat,
-    onFrame(data) {
-      if (renderPaused) return;
-      cursorHome();
-      sendFrame(data);
-      urlBar.render();
-    },
+    onFrame,
   });
 
   const urlBar = startInputHandling(client, cssCellW, cssCellH, bindings, pauseRender, forceCapture);
   urlBar.render();
 
-  // ページ読み込みイベントで強制キャプチャ
-  // 遅延キャプチャも追加: ページ描画完了後に確実にフレームを取得
+  // Force capture on page load events (debounced — multiple events fire close together)
+  let delayedTimers = [];
   function delayedCapture() {
-    forceCapture();
-    setTimeout(() => forceCapture(), 300);
-    setTimeout(() => forceCapture(), 1000);
+    for (const t of delayedTimers) clearTimeout(t);
+    delayedTimers = [];
+    for (const ms of DELAYED_CAPTURE_MS) {
+      if (ms === 0) forceCapture();
+      else delayedTimers.push(setTimeout(() => forceCapture(), ms));
+    }
   }
   client.on('Page.domContentEventFired', delayedCapture);
   client.on('Page.loadEventFired', delayedCapture);
-  client.on('Page.frameNavigated', delayedCapture);
+  client.on('Page.frameNavigated', ({ frame }) => {
+    if (!frame.parentId) delayedCapture(); // Main frame only
+  });
 
-  // Phase 4: ナビゲーション
-  client.send('Page.navigate', { url });
-
+  let shuttingDown = false;
   async function shutdown() {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.error('casty: shutting down...');
-    renderPaused = true;           // まず描画を止める
+    renderPaused = true;           // Stop rendering first
     try {
-      await stopScreencast(client);  // screencast 停止 (pending capture も無効化)
+      await stopScreencast(client, screencastCleanup);  // Stop screencast (disables pending captures)
       await client.send('Browser.close').catch(() => {});
     } catch {}
     client.close();
     chromeProcess.kill();
     disableMouse();
     showCursor();
-    clearScreen();                 // 全停止後にクリア → 再描画される心配なし
+    try { process.stdin.setRawMode(false); } catch {}
+    clearScreen();                 // Clear after everything is stopped — no re-render risk
     cleanupTmp();
     process.exit(0);
   }
@@ -159,41 +188,59 @@ async function main() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  // SIGWINCH: リサイズ＋フォントサイズ変更に追従
-  process.on('SIGWINCH', async () => {
-    const t = await getTermInfo();
-    const vh = t.height - Math.round(t.cellHeight);
-    const cw = Math.round(t.width / t.zoom);
-    const ch = Math.round(vh / t.zoom);
-    console.error(`casty: resize ${cw}x${ch} (dev:${t.width}x${vh}) zoom:${t.zoom.toFixed(2)}`);
-
-    clearScreen();
-
-    await stopScreencast(client);
-    await client.send('Emulation.setDeviceMetricsOverride', {
-      width: cw, height: ch, deviceScaleFactor: t.zoom, mobile: false,
-    });
-
-    ({ forceCapture } = await startScreencast(client, {
-      width: cw,
-      height: ch,
-      format: screenshotFormat,
-      onFrame(data) {
-        if (renderPaused) return;
-        cursorHome();
-        sendFrame(data);
-        urlBar.render();
-      },
-    }));
+  // SIGWINCH: Follow resize + font size changes
+  // Debounced (150ms) + guarded with pending flag to catch late resizes
+  let resizeTimer = null;
+  let resizing = false;
+  let pendingResize = false;
+  process.on('SIGWINCH', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(handleResize, 150);
   });
+  async function handleResize() {
+    if (resizing) { pendingResize = true; return; }
+    resizing = true;
+    try {
+      const t = await getTermInfo({ keepAlive: true });
+      const vh = t.height - Math.round(t.cellHeight);
+      const cw = Math.round(t.width / t.zoom);
+      const ch = Math.round(vh / t.zoom);
+      console.error(`casty: resize ${cw}x${ch} (dev:${t.width}x${vh}) zoom:${t.zoom.toFixed(2)}`);
+
+      urlBar.updateCellSize(t.cellWidth, t.cellHeight);
+      clearScreen();
+      resetFrameCache();
+
+      await stopScreencast(client, screencastCleanup);
+      await client.send('Emulation.setDeviceMetricsOverride', {
+        width: cw, height: ch, deviceScaleFactor: t.zoom, mobile: false,
+      });
+
+      ({ forceCapture, cleanup: screencastCleanup } = await startScreencast(client, {
+        width: cw,
+        height: ch,
+        format: screenshotFormat,
+        onFrame,
+      }));
+    } catch (err) {
+      console.error('casty: resize error:', err.message);
+    }
+    resizing = false;
+    if (pendingResize) {
+      pendingResize = false;
+      handleResize();
+    }
+  }
 }
 
-main().catch((err) => {
-  // stdin を raw mode から復帰 (CSI 14t 応答の漏れを防止)
+try {
+  await main();
+} catch (err) {
+  // Restore stdin from raw mode (prevent CSI 14t response leak)
   try { process.stdin.setRawMode(false); process.stdin.pause(); } catch {}
   console.error('casty: error:', err.message);
   disableMouse();
   showCursor();
   cleanupTmp();
   process.exit(1);
-});
+}

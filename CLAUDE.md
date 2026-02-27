@@ -1,278 +1,100 @@
 # casty
 
-TTY web browser using Playwright and Kitty graphics protocol.
+TTY web browser using raw CDP and Kitty graphics protocol.
 
-**リモートデスクトップのような仕組みで、TTY 上で完全な Web ブラウジングを実現する。**
+Remote desktop-like architecture: Chrome renders everything, casty bridges screen frames and input events to the terminal.
 
-## Requirements
+## Coding Conventions
 
-- **Kitty graphics protocol 必須** - bcon, kitty 等の対応ターミナルが必要
-- Node.js >= 18
-- Playwright (Chromium を管理)
-
-## Concept
-
-Remote desktop-like architecture for web browsing on TTY:
-
-```
-Chrome (Headless)          casty              bcon/kitty
-┌─────────────────┐      ┌─────────────────┐  ┌─────────────────┐
-│  Web rendering  │ ───→ │  Screencast     │ ─→│  Kitty graphics │
-│  JS execution   │      │  JPEG frames    │  │  display        │
-│  WebRTC/Audio   │ ←─── │  Input events   │ ←─│  Mouse/Keyboard │
-└─────────────────┘      └─────────────────┘  └─────────────────┘
-```
-
-**ポイント:**
-- Chrome がレンダリング/JS実行/WebRTC を全部やる
-- casty は「画面転送 + 入力転送」のブリッジだけ
-- 実質 100-200 行程度のコードで実現可能
-
-## Core Features
-
-### 1. 自動アップデート
-
-起動時に安全に自動更新:
-
-```bash
-#!/bin/bash
-# bin/casty (シェルラッパー)
-CASTY_DIR="$HOME/.casty"
-
-# 更新チェック (バックグラウンド or 起動時)
-cd "$CASTY_DIR"
-npm update --silent 2>/dev/null
-npx playwright install chromium --silent 2>/dev/null
-
-# 本体起動
-node "$CASTY_DIR/lib/main.js" "$@"
-```
-
-- npm update で casty 本体を更新
-- playwright install で Chromium を更新
-- オフラインでも動作 (エラー無視)
-
-### 2. コマンド起動
-
-```bash
-casty https://google.com
-casty https://youtube.com
-casty https://meet.google.com
-```
-
-シェルスクリプトをエントリポイントにして ~/.local/bin/ に配置。
-
-### 3. Cookie/Storage 永続化 (ログイン維持)
-
-Playwright の persistent context を使用:
-
-```javascript
-import { chromium } from 'playwright';
-import { homedir } from 'os';
-import { join } from 'path';
-
-const profileDir = join(homedir(), '.casty', 'profile');
-
-const browser = await chromium.launchPersistentContext(profileDir, {
-  headless: false,
-  args: [
-    '--use-fake-ui-for-media-stream',
-    '--auto-accept-camera-and-microphone-capture',
-  ]
-});
-```
-
-サポート:
-- Cookie ✅
-- localStorage ✅
-- sessionStorage ✅
-- IndexedDB ✅
-- Service Workers ✅
-- ログイン状態維持 ✅
-
-### 4. Kitty Graphics Protocol
-
-JPEG フレームを直接送信:
-
-```javascript
-function sendFrame(jpegBase64) {
-  // a=T: transmit and display
-  // f=100: JPEG format
-  // q=2: suppress response
-  // C=1: cursor movement (画面クリア不要)
-  process.stdout.write(`\x1b_Ga=T,f=100,q=2,C=1;${jpegBase64}\x1b\\`);
-}
-```
-
-### 5. ダイナミックリサイズ (tmux 対応)
-
-tmux でペインサイズが変わっても追従:
-
-```javascript
-import { stdout } from 'process';
-
-// ターミナルサイズ取得
-function getTermSize() {
-  return {
-    cols: stdout.columns,
-    rows: stdout.rows
-  };
-}
-
-// セルのピクセルサイズ取得 (CSI 14 t)
-async function getCellPixelSize() {
-  // ターミナルに問い合わせ
-  // ESC [ 14 t → ESC [ 4 ; height ; width t
-  // または環境変数から取得
-  return {
-    cellWidth: parseInt(process.env.CASTY_CELL_WIDTH) || 10,
-    cellHeight: parseInt(process.env.CASTY_CELL_HEIGHT) || 20
-  };
-}
-
-// SIGWINCH (サイズ変更シグナル) を監視
-process.on('SIGWINCH', async () => {
-  const { cols, rows } = getTermSize();
-  const { cellWidth, cellHeight } = await getCellPixelSize();
-
-  // ピクセルサイズに変換
-  const pixelWidth = cols * cellWidth;
-  const pixelHeight = rows * cellHeight;
-
-  // Chrome のビューポート更新
-  await page.setViewport({
-    width: pixelWidth,
-    height: pixelHeight
-  });
-
-  // Screencast は自動で新サイズに追従
-});
-```
+- **Code comments and commit messages must be in English**
+- Keep code concise and idiomatic
+- Prefer performance and readability
 
 ## Architecture
 
-### Files
-
 ```
-~/.casty/                    # インストール先
-├── bin/
-│   └── casty               # シェルラッパー (エントリポイント)
-├── lib/
-│   ├── main.js             # メインロジック
-│   ├── browser.js          # Playwright/CDP 制御
-│   ├── kitty.js            # Kitty graphics 出力
-│   └── input.js            # 入力イベント処理
-├── profile/                 # ブラウザプロファイル (Cookie等)
-├── package.json
-└── node_modules/
-
-~/.local/bin/casty          # シンボリックリンク
+Chrome (headless-shell)      casty                Terminal (Ghostty/bcon/kitty)
+┌─────────────────┐        ┌─────────────────┐   ┌─────────────────┐
+│  Web rendering  │  ────→ │  CDP screencast │ ─→│  Kitty graphics │
+│  JS execution   │        │  (change detect)│   │  display        │
+│  WebRTC/Audio   │  ←──── │  Input events   │ ←─│  Mouse/Keyboard │
+└─────────────────┘        └─────────────────┘   └─────────────────┘
 ```
 
-### Screencast (not Screenshot)
+Key points:
+- Chrome does all rendering, JS execution, and WebRTC
+- casty is just a screen + input bridge (~1200 lines)
+- Raw CDP via `ws` package (no Playwright runtime dependency)
+- `Runtime.enable` must never be sent (breaks Google login)
 
-CDP の Page.startScreencast を使用:
-- 差分ベースで高速 (16-50ms)
-- JPEG 品質調整可能
-- 30fps 目標
+## Requirements
 
-```javascript
-const client = await page.context().newCDPSession(page);
+- **Kitty graphics protocol** — bcon, kitty, Ghostty, etc.
+- Node.js >= 18
+- chrome-headless-shell (auto-downloaded) or system Chromium
 
-await client.send('Page.startScreencast', {
-  format: 'jpeg',
-  quality: 80,
-  maxWidth: 1280,
-  maxHeight: 720,
-});
+## Files
 
-client.on('Page.screencastFrame', async ({ data, sessionId }) => {
-  sendFrame(data);  // Kitty protocol で出力
-  await client.send('Page.screencastFrameAck', { sessionId });
-});
+```
+bin/casty.js         Entry point, terminal setup, main loop
+lib/browser.js       CDP browser control, hybrid frame capture, stealth patches
+lib/cdp.js           Lightweight CDP WebSocket client
+lib/chrome.js        Chrome binary detection and process launch
+lib/input.js         Keyboard/mouse input handling, key bindings, clipboard
+lib/kitty.js         Kitty graphics protocol output (file/inline transfer)
+lib/urlbar.js        Address bar (always visible on line 1)
+lib/hints.js         Vimium-style hint mode (Alt+F)
+lib/config.js        Config loading (~/.casty/config.json)
+lib/keys.js          Key binding config (~/.casty/keys.json)
+lib/bookmarks.js     Bookmark search (~/.casty/bookmarks.json)
 ```
 
-### Input Handling
+## Key Bindings (default)
 
-```javascript
-// stdin から入力を受け取る
-process.stdin.setRawMode(true);
-process.stdin.on('data', async (buf) => {
-  // キー入力 → Chrome に送信
-  // マウス入力 → 座標変換して Chrome に送信
-});
-```
+| Key       | Action        |
+|-----------|---------------|
+| Ctrl+Q    | Quit          |
+| Alt+Left  | Back          |
+| Alt+Right | Forward       |
+| Alt+L     | Address bar   |
+| Alt+C     | Copy          |
+| Ctrl+V    | Paste         |
+| Alt+F     | Hint mode     |
 
-## Implementation Priority
+Customizable via `~/.casty/keys.json`.
 
-1. **Phase 1: 最小動作版**
-   - [ ] URL を引数で受け取って表示
-   - [ ] Screencast → Kitty 出力
-   - [ ] Ctrl+C で終了
+## Technical Notes
 
-2. **Phase 2: インタラクション**
-   - [ ] キーボード入力転送
-   - [ ] マウスクリック
-   - [ ] スクロール
+### Hybrid Frame Capture
 
-3. **Phase 3: 実用機能**
-   - [ ] Cookie/Storage 永続化
-   - [ ] ダイナミックリサイズ
-   - [ ] 自動アップデート
+Screencast (1/4 resolution) is used only as a change-detection trigger.
+`Page.captureScreenshot` delivers full DPR-aware frames (~12fps).
+Screencast ignores DPR, so using it directly produces blurry output.
 
-4. **Phase 4: 高度な機能**
-   - [ ] テキスト選択/コピー
-   - [ ] 動画再生最適化
-   - [ ] ビデオ会議対応
+### Stealth Patches
 
-## Installation (Planned)
+Injected via `Page.addScriptToEvaluateOnNewDocument` (no `Runtime.enable`).
+Hides headless signals: plugins, mimeTypes, languages, window.chrome,
+WebGL renderer, Permissions API, navigator.connection.
+UA is unified to macOS Chrome with matching platform string.
 
-```bash
-# インストール
-curl -fsSL https://example.com/casty/install.sh | bash
+### Kitty Graphics
 
-# または手動
-git clone https://github.com/user/casty ~/.casty
-cd ~/.casty && npm install
-npx playwright install chromium
-ln -s ~/.casty/bin/casty ~/.local/bin/casty
-```
+Two transfer modes:
+- **File transfer (t=f)**: fast, sends file path only (bcon)
+- **Inline (t=d)**: sends base64 data in 4096B chunks (Ghostty, kitty)
+
+Format is PNG (f=100). JPEG not supported for Kitty inline.
+
+### Input
+
+- SGR 1006 mouse protocol for clicks, drag, scroll
+- macOS Option key: Unicode chars mapped back via rawBindings
+- Linux: ESC prefix buffering (50ms) for split Alt+Key sequences
+- OSC 52 for clipboard read/write
 
 ## Usage
 
 ```bash
-# 基本
 casty https://google.com
-
-# オプション (予定)
-casty --quality 60 https://youtube.com    # 低品質モード
-casty --size 960x540 https://example.com  # 解像度指定
 ```
-
-## Technical Notes
-
-### なぜ Screenshot じゃなく Screencast か
-
-| 方式 | レイテンシ | 備考 |
-|------|-----------|------|
-| page.screenshot() | 100-300ms | 毎回フル取得 |
-| **Screencast** | 16-50ms | 差分ベース、ストリーム |
-
-### Kitty vs Sixel
-
-| | Kitty | Sixel |
-|--|-------|-------|
-| 形式 | PNG/JPEG 直送 | 独自形式に変換必要 |
-| 速度 | 速い | 遅い |
-| 対応 | bcon, kitty | 多くのターミナル |
-
-casty は Kitty 専用。Sixel は対象外。
-
-### 音声/カメラ (Zoom/Meet 等)
-
-Chrome が PulseAudio 経由で処理:
-- 音声出力 → PulseAudio → スピーカー
-- 音声入力 ← PulseAudio ← マイク
-- カメラ ← V4L2 ← /dev/video0
-
-casty 側で特別な処理は不要。Chrome 任せ。

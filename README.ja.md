@@ -36,8 +36,10 @@ Chrome (Headless Shell)     casty              Terminal
 
 ## 必要環境
 
-- **Kitty graphics protocol 対応ターミナル** — kitty, Ghostty, bcon 等
-- Node.js >= 18
+- **Kitty graphics protocol** 対応ターミナル
+- Node.js >= 22
+
+動作確認済み: **bcon**, **Ghostty**, **kitty**
 
 ## インストール
 
