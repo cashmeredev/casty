@@ -1,10 +1,10 @@
 {
   "name": "@sanohiro/casty",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "TTY web browser using raw CDP and Kitty graphics protocol",
   "main": "bin/casty.js",
   "bin": {
-    "casty": "bin/casty"
+    "casty": "bin/casty.js"
   },
   "files": [
     "bin/",

@@ -197,4 +197,4 @@ if needs_update; then
   fi
 fi
 
-exec node "$CASTY_DIR/bin/casty.js" "$@"
+# Called from casty.js — just ensures Chrome is available

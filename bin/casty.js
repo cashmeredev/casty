@@ -1,6 +1,19 @@
 #!/usr/bin/env node
 // casty - TTY web browser using raw CDP and Kitty graphics protocol
 
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// Ensure Chrome is installed (runs shell script that handles download/update)
+const __bin = dirname(fileURLToPath(import.meta.url));
+try {
+  execFileSync('bash', [join(__bin, 'casty')], { stdio: 'inherit' });
+} catch (err) {
+  // Shell script prints its own errors — exit if Chrome not available
+  if (err.status) process.exit(err.status);
+}
+
 import { startBrowser, setupPage, startScreencast, stopScreencast } from '../lib/browser.js';
 import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport } from '../lib/kitty.js';
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
