@@ -6,6 +6,8 @@ Kitty graphics protocol を使った TTY Web ブラウザ。
 
 ヘッドレス Chrome のレンダリングを Kitty 対応ターミナルに表示し、ターミナル上で完全な Web ブラウジングを実現します。
 
+<video src="https://github.com/user-attachments/assets/330bf0c3-dd08-44a5-b627-b90c200d57fe" autoplay loop muted playsinline></video>
+
 ```
 Chrome (Headless Shell)     casty              Terminal
 ┌─────────────────┐      ┌─────────────────┐  ┌─────────────────┐

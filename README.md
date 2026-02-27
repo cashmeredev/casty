@@ -6,6 +6,8 @@ A TTY web browser powered by Kitty graphics protocol.
 
 casty renders full web pages in your terminal using Chrome's headless rendering, bridging the gap between a headless browser and your Kitty-compatible terminal.
 
+<video src="https://github.com/user-attachments/assets/330bf0c3-dd08-44a5-b627-b90c200d57fe" autoplay loop muted playsinline></video>
+
 ```
 Chrome (Headless Shell)     casty              Terminal
 ┌─────────────────┐      ┌─────────────────┐  ┌─────────────────┐

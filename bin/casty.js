@@ -117,8 +117,7 @@ async function main() {
   enableMouse();
 
   // Mouse coordinates in device pixels
-  // headless-shell with deviceScaleFactor doesn't properly scale Input coordinates,
-  // so we send device pixel values directly instead of CSS pixels (cellWidth/zoom)
+  // Chrome headless-shell ignores deviceScaleFactor for Input.dispatchMouseEvent
   const cssCellW = term.cellWidth;
   const cssCellH = term.cellHeight;
   // format: auto → PNG for inline, JPEG (adaptive) for file transfer
