@@ -90,7 +90,7 @@ Customize via `~/.casty/keys.json` (file is not created automatically):
 ### Address Bar
 
 - **Alt+L** or click row 1 to focus — URL is selected, type to replace
-- **Enter** to navigate (URLs) or search (Brave Search)
+- **Enter** to navigate (URLs) or search (Google)
 - **`/b query`** to search bookmarks
 - **Escape** to cancel
 - **Ctrl+A** select all, **Ctrl+U** clear, **Ctrl+W** delete word
@@ -122,7 +122,7 @@ Customize via `~/.casty/config.json` (file is not created automatically):
 ```json
 {
   "homeUrl": "https://github.com/sanohiro/casty",
-  "searchUrl": "https://search.brave.com/search?q=",
+  "searchUrl": "https://www.google.com/search?q=",
   "transport": "auto",
   "format": "auto"
 }
@@ -131,7 +131,7 @@ Customize via `~/.casty/config.json` (file is not created automatically):
 | Key | Description | Default |
 |-----|-------------|---------|
 | `homeUrl` | Page opened when no URL is given | `https://github.com/sanohiro/casty` |
-| `searchUrl` | Search engine URL (query appended) | `https://search.brave.com/search?q=` |
+| `searchUrl` | Search engine URL (query appended) | `https://www.google.com/search?q=` |
 | `transport` | Kitty image transfer: `auto`, `file`, or `inline` | `auto` (bcon→file, others→inline) |
 | `format` | Screenshot format: `auto`, `png`, or `jpeg` | `auto` (file→jpeg, inline→png) |
 

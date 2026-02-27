@@ -90,7 +90,7 @@ casty   # ホームページを開く (デフォルト: casty GitHub ページ)
 ### アドレスバー
 
 - **Alt+L** または1行目クリックでフォーカス — URL が全選択状態になる
-- **Enter** で移動 (URL) または検索 (Brave Search)
+- **Enter** で移動 (URL) または検索 (Google)
 - **`/b クエリ`** でブックマーク検索
 - **Escape** でキャンセル
 - **Ctrl+A** 全選択、**Ctrl+U** 全消去、**Ctrl+W** 単語削除
@@ -122,7 +122,7 @@ casty   # ホームページを開く (デフォルト: casty GitHub ページ)
 ```json
 {
   "homeUrl": "https://github.com/sanohiro/casty",
-  "searchUrl": "https://search.brave.com/search?q=",
+  "searchUrl": "https://www.google.com/search?q=",
   "transport": "auto",
   "format": "auto"
 }
@@ -131,7 +131,7 @@ casty   # ホームページを開く (デフォルト: casty GitHub ページ)
 | キー | 説明 | デフォルト |
 |------|------|-----------|
 | `homeUrl` | URL 未指定時に開くページ | `https://github.com/sanohiro/casty` |
-| `searchUrl` | 検索エンジン URL (クエリが末尾に付加される) | `https://search.brave.com/search?q=` |
+| `searchUrl` | 検索エンジン URL (クエリが末尾に付加される) | `https://www.google.com/search?q=` |
 | `transport` | Kitty 画像転送方式: `auto`, `file`, `inline` | `auto` (bcon→file、他→inline) |
 | `format` | スクリーンショット形式: `auto`, `png`, `jpeg` | `auto` (file→jpeg、inline→png) |
 
