@@ -43,7 +43,8 @@ function calcZoom(cellWidth) {
 function queryTermPixelSize({ keepAlive = false } = {}) {
   if (!process.stdin.isTTY) return Promise.resolve(null);
 
-  const { promise, resolve } = Promise.withResolvers();
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
   const wasRaw = process.stdin.isRaw;
   const timeout = setTimeout(() => {
     process.stdin.removeListener('data', onData);

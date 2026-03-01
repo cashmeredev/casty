@@ -39,7 +39,7 @@ Chrome (Headless Shell)     casty              Terminal
 ## Requirements
 
 - **Kitty graphics protocol** compatible terminal
-- Node.js >= 22
+- Node.js >= 18
 
 Tested on: **bcon**, **Ghostty**, **kitty**
 

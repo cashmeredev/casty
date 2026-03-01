@@ -39,7 +39,7 @@ Chrome (Headless Shell)     casty              Terminal
 ## 必要環境
 
 - **Kitty graphics protocol** 対応ターミナル
-- Node.js >= 22
+- Node.js >= 18
 
 動作確認済み: **bcon**, **Ghostty**, **kitty**
 

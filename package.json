@@ -1,6 +1,6 @@
 {
   "name": "@sanohiro/casty",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "TTY web browser using raw CDP and Kitty graphics protocol",
   "main": "bin/casty.js",
   "bin": {
@@ -33,7 +33,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "ws": "^8.0.0"
