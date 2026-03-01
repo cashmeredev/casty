@@ -197,4 +197,8 @@ if needs_update; then
   fi
 fi
 
-# Called from casty.js — just ensures Chrome is available
+# When called from casty.js, CASTY_ENSURE_CHROME is set — just return
+# When called directly (./bin/casty), launch the app
+if [ -z "$CASTY_ENSURE_CHROME" ]; then
+  exec node "$CASTY_DIR/bin/casty.js" "$@"
+fi

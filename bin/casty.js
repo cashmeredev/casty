@@ -8,7 +8,10 @@ import { dirname, join } from 'node:path';
 // Ensure Chrome is installed (runs shell script that handles download/update)
 const __bin = dirname(fileURLToPath(import.meta.url));
 try {
-  execFileSync('bash', [join(__bin, 'casty')], { stdio: 'inherit' });
+  execFileSync('bash', [join(__bin, 'casty')], {
+    stdio: 'inherit',
+    env: { ...process.env, CASTY_ENSURE_CHROME: '1' },
+  });
 } catch (err) {
   // Shell script prints its own errors — exit if Chrome not available
   if (err.status) process.exit(err.status);
