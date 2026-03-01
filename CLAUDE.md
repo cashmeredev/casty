@@ -6,7 +6,7 @@ Remote desktop-like architecture: Chrome renders everything, casty bridges scree
 
 ## Coding Conventions
 
-- **Code comments and commit messages must be in English**
+- **Code comments, commit messages, and release notes must be in English**
 - Keep code concise and idiomatic
 - Prefer performance and readability
 
