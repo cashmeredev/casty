@@ -133,7 +133,8 @@ casty   # ホームページを開く (デフォルト: casty GitHub ページ)
   "homeUrl": "https://github.com/sanohiro/casty",
   "searchUrl": "https://www.google.com/search?q=",
   "transport": "auto",
-  "format": "auto"
+  "format": "auto",
+  "mouseMode": 1002
 }
 ```
 
@@ -141,8 +142,9 @@ casty   # ホームページを開く (デフォルト: casty GitHub ページ)
 |------|------|-----------|
 | `homeUrl` | URL 未指定時に開くページ | `https://github.com/sanohiro/casty` |
 | `searchUrl` | 検索エンジン URL (クエリが末尾に付加される) | `https://www.google.com/search?q=` |
-| `transport` | Kitty 画像転送方式: `auto`, `file`, `inline` | `auto` (bcon→file、他→inline) |
+| `transport` | Kitty 画像転送方式: `auto`, `file`, `inline` | `auto` (bcon/kitty→file、他→inline) |
 | `format` | スクリーンショット形式: `auto`, `png`, `jpeg` | `auto` (file→jpeg、inline→png) |
+| `mouseMode` | マウストラッキングモード: `1002` (ボタンイベント) or `1003` (全イベント) | 自動 (Ghostty→1003、他→1002) |
 
 ## アーキテクチャ
 

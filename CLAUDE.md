@@ -81,10 +81,11 @@ UA is unified to macOS Chrome with matching platform string.
 ### Kitty Graphics
 
 Two transfer modes:
-- **File transfer (t=f)**: fast, sends file path only (bcon)
-- **Inline (t=d)**: sends base64 data in 4096B chunks (Ghostty, kitty)
+- **File transfer (t=f)**: fast, sends file path only (bcon, kitty)
+- **Inline (t=d)**: sends base64 data in 4096B chunks (Ghostty, others)
 
-Format is PNG (f=100). JPEG not supported for Kitty inline.
+Adaptive format: JPEG during rapid updates, PNG refinement after idle (file transfer).
+PNG always for inline (Kitty protocol has no JPEG format code).
 
 ### Input
 

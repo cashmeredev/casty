@@ -133,7 +133,8 @@ Customize via `~/.casty/config.json` (file is not created automatically):
   "homeUrl": "https://github.com/sanohiro/casty",
   "searchUrl": "https://www.google.com/search?q=",
   "transport": "auto",
-  "format": "auto"
+  "format": "auto",
+  "mouseMode": 1002
 }
 ```
 
@@ -141,8 +142,9 @@ Customize via `~/.casty/config.json` (file is not created automatically):
 |-----|-------------|---------|
 | `homeUrl` | Page opened when no URL is given | `https://github.com/sanohiro/casty` |
 | `searchUrl` | Search engine URL (query appended) | `https://www.google.com/search?q=` |
-| `transport` | Kitty image transfer: `auto`, `file`, or `inline` | `auto` (bcon→file, others→inline) |
+| `transport` | Kitty image transfer: `auto`, `file`, or `inline` | `auto` (bcon/kitty→file, others→inline) |
 | `format` | Screenshot format: `auto`, `png`, or `jpeg` | `auto` (file→jpeg, inline→png) |
+| `mouseMode` | Mouse tracking mode: `1002` (button-event) or `1003` (any-event) | Auto (Ghostty→1003, others→1002) |
 
 ## Architecture
 
