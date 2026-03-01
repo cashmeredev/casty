@@ -18,10 +18,6 @@ if (!process.env.CASTY_ENSURE_CHROME) {
   }
 }
 
-import { appendFileSync } from 'node:fs';
-const DBG = '/tmp/casty-debug.log';
-function dbg(msg) { appendFileSync(DBG, `${Date.now()} ${msg}\n`); }
-
 import { startBrowser, setupPage, startScreencast, stopScreencast } from '../lib/browser.js';
 import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport } from '../lib/kitty.js';
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
@@ -111,23 +107,18 @@ async function getTermInfo({ keepAlive = false } = {}) {
 }
 
 async function main() {
-  dbg('main: start');
   // Phase 1: Launch Chrome and get terminal info in parallel
   // getTermInfo() must complete fully (prevent CSI 14t response leak)
   const browserP = startBrowser();
   const term = await getTermInfo();
-  dbg(`main: term=${JSON.stringify(term)}`);
   const browser = await browserP;
-  dbg('main: browser ready');
 
   // Reserve line 1 for URL bar, use the rest for browser display
   const barHeight = Math.round(term.cellHeight);
   const viewHeight = term.height - barHeight;
 
   // Phase 2: CDP connection + page setup
-  dbg(`main: setupPage viewHeight=${viewHeight}`);
   const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight });
-  dbg(`main: page ready css=${cssWidth}x${cssHeight}`);
   const chromeProcess = browser.proc;
 
   // Log WebSocket errors to stderr (prevent unhandled crash)
@@ -158,17 +149,13 @@ async function main() {
 
   // Frame callback for screencast / captureScreenshot
   // sendFrame includes cursor positioning (single write)
-  let frameCount = 0;
   function onFrame(data) {
-    frameCount++;
-    dbg(`onFrame: #${frameCount} len=${data?.length || 0} paused=${renderPaused}`);
     if (renderPaused) return;
     sendFrame(data);
     urlBar.renderIfDirty();
   }
 
   // Phase 3: Start screencast
-  dbg(`main: startScreencast format=${screenshotFormat} css=${cssWidth}x${cssHeight}`);
   let { forceCapture, cleanup: screencastCleanup } = await startScreencast(client, {
     width: cssWidth,
     height: cssHeight,
