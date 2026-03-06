@@ -31,6 +31,7 @@ Key points:
 
 - **Kitty graphics protocol** — bcon, kitty, Ghostty, etc.
 - Node.js >= 18
+- `unzip` (for Chrome auto-install)
 - chrome-headless-shell (auto-downloaded) or system Chromium
 
 ## Files

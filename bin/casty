@@ -163,6 +163,12 @@ has_system_chrome() {
 }
 
 if ! has_chrome; then
+  # unzip が必要 (Chrome for Testing は zip 配布)
+  if ! is_arm64_linux && ! command -v unzip >/dev/null 2>&1; then
+    echo "casty: 'unzip' is required to install Chrome Headless Shell." >&2
+    echo "casty: Install with: sudo apt install unzip" >&2
+    exit 1
+  fi
   if is_arm64_linux; then
     # ARM64 Linux: Chrome for Testing にバイナリがないので Playwright 経由でインストール
     install_chromium_playwright

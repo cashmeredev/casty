@@ -40,6 +40,7 @@ Chrome (Headless Shell)     casty              Terminal
 
 - **Kitty graphics protocol** 対応ターミナル
 - Node.js >= 18
+- `unzip`（Chrome Headless Shell の自動インストールに必要）
 
 動作確認済み: **bcon**, **Ghostty**, **kitty**
 
