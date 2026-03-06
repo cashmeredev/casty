@@ -4,7 +4,7 @@ Run a real Chrome browser inside your terminal.
 
 **[日本語](README.ja.md)**
 
-casty is not a text-mode browser. It runs an actual Chrome engine in headless mode, captures rendered frames via Chrome DevTools Protocol, and displays them in your terminal using the Kitty graphics protocol. Your terminal becomes a remote Chrome viewer.
+casty is not a text-mode browser like w3m or lynx. It launches headless Chrome, grabs the rendered frames over CDP, and draws them in your terminal via Kitty graphics protocol. Think of it as a remote desktop for Chrome that fits in a terminal window.
 
 <video src="https://github.com/user-attachments/assets/552f1972-bb53-481e-9516-c36b7e5085d8" autoplay loop muted playsinline></video>
 
@@ -21,21 +21,13 @@ Terminal (you)          casty               Chrome (headless)
 └──────────────┘      └──────────────┘      └──────────────┘
 ```
 
-- **Real Chrome engine** — JavaScript, CSS, Canvas, WebGL all work
-- **Raw CDP** — no Playwright, no puppeteer, ~1200 lines of code
-- **Stealth patches** — Google login works (bot detection bypassed)
-- **High-res frames** — DPR-aware capture, not blurry screencast
-- **Mouse + keyboard** — click, scroll, drag, type, just like a real browser
+Chrome does all the rendering. casty is just a bridge (~1200 lines) that streams frames to your terminal and sends input back. No Playwright, no puppeteer — raw CDP over WebSocket.
 
-## Why casty?
+Since it's real Chrome, JavaScript, CSS, Canvas, and WebGL all work. Google login works too (stealth patches bypass bot detection). Mouse clicks, scrolling, dragging, typing — everything you'd expect.
 
-Traditional terminal browsers (w3m, lynx, Browsh) parse and re-render HTML as text. casty takes a different approach: Chrome renders everything, casty just streams the pixels to your terminal.
+## Why use this?
 
-This means:
-- **Every website works** — no rendering quirks or missing features
-- **SSH-friendly** — browse the web over SSH on a headless server
-- **No X11/Wayland needed** — just a Kitty-compatible terminal
-- **Stays in your workflow** — no context switch to a GUI browser
+If you're working over SSH on a headless server and need to check a web page, your options are usually `curl`, `lynx`, or forwarding X11. casty gives you an actual browser without leaving the terminal. No X11, no VNC, no Wayland — just a Kitty-compatible terminal.
 
 ## Installation
 
@@ -56,7 +48,7 @@ Chrome Headless Shell is auto-installed to `~/.casty/browsers/` on first run.
 
 ### Requirements
 
-- **Kitty graphics protocol** terminal (tested: **Ghostty**, **kitty**, **bcon**)
+- A terminal with **Kitty graphics protocol** support (tested on Ghostty, kitty, bcon)
 - Node.js >= 18
 - `unzip` (for Chrome auto-install)
 
@@ -79,7 +71,7 @@ casty   # opens home page
 | Ctrl+V | Paste |
 | Ctrl+Q | Quit |
 
-Customize via `~/.casty/keys.json`.
+Customizable via `~/.casty/keys.json`.
 
 ### Hint Mode
 
@@ -122,15 +114,27 @@ Create `~/.casty/bookmarks.json`:
 | `format` | Capture format: `auto`, `png`, `jpeg` | `auto` (file→jpeg adaptive, inline→png) |
 | `mouseMode` | `1002` (button-event) or `1003` (any-event) | Auto (Ghostty→1003, others→1002) |
 
-<details>
-<summary><strong>Technical Details</strong></summary>
+## Comparison
 
-1. Launches Chrome Headless Shell via raw CDP WebSocket (no `Runtime.enable` — breaks Google login)
-2. Injects stealth patches via `Page.addScriptToEvaluateOnNewDocument` before page load
-3. Hybrid frame capture: low-res Screencast for change detection, `Page.captureScreenshot` for hi-res output
-4. Adaptive format: JPEG during rapid updates, PNG refinement after idle (file transfer mode)
-5. Terminal pixel size detection (CSI 14t) for automatic zoom calculation
-6. Profile cleanup on startup (keeps cookies/storage, removes caches)
+| | casty | Browsh | w3m/lynx |
+|---|---|---|---|
+| Engine | Chrome | Firefox | Custom parser |
+| Rendering | Pixel-perfect | Text approximation | Text only |
+| JavaScript | Yes | Yes | No |
+| Display | Kitty graphics | Character cells | Character cells |
+| Dependencies | Node.js + Chrome | Go + Firefox | Standalone |
+
+<details>
+<summary>Technical Details</summary>
+
+The whole thing is about 1200 lines of JavaScript. Here's what's going on under the hood:
+
+- Launches chrome-headless-shell and talks to it via raw CDP WebSocket
+- `Runtime.enable` is never sent (it breaks Google login — discovered the hard way)
+- Stealth patches are injected via `Page.addScriptToEvaluateOnNewDocument` before any page loads
+- Frame capture is hybrid: low-res Screencast triggers change detection, then `Page.captureScreenshot` grabs hi-res frames with proper DPR
+- File transfer mode uses adaptive JPEG→PNG: fast JPEG during scrolling/video, crisp PNG after things settle
+- Terminal pixel size is detected via CSI 14t for auto-zoom
 
 ```
 bin/casty          Shell wrapper (Chrome install/update)
@@ -148,17 +152,6 @@ lib/bookmarks.js   Bookmark search
 ```
 
 </details>
-
-## Comparison
-
-| | casty | Browsh | w3m/lynx |
-|---|---|---|---|
-| Engine | Real Chrome | Real Firefox | Custom parser |
-| Rendering | Pixel-perfect | Text approximation | Text only |
-| JavaScript | Full support | Full support | None |
-| Protocol | Kitty graphics | Character cells | Character cells |
-| Dependencies | Node.js + Chrome | Go + Firefox | Standalone |
-| Google login | Works (stealth) | May be blocked | N/A |
 
 ## License
 

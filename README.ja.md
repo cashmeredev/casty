@@ -4,7 +4,7 @@
 
 **[English](README.md)**
 
-casty はテキストモードブラウザではありません。実際の Chrome エンジンをヘッドレスで起動し、Chrome DevTools Protocol でレンダリング結果をキャプチャし、Kitty graphics protocol でターミナルに表示します。ターミナルが Chrome のリモートビューアになります。
+casty は w3m や lynx のようなテキストブラウザではありません。ヘッドレス Chrome を起動し、CDP でレンダリング結果を取得して、Kitty graphics protocol でターミナルに描画します。Chrome のリモートデスクトップがターミナルに収まった感じです。
 
 <video src="https://github.com/user-attachments/assets/552f1972-bb53-481e-9516-c36b7e5085d8" autoplay loop muted playsinline></video>
 
@@ -21,21 +21,13 @@ casty はテキストモードブラウザではありません。実際の Chro
 └──────────────┘      └──────────────┘      └──────────────┘
 ```
 
-- **本物の Chrome エンジン** — JavaScript, CSS, Canvas, WebGL すべて動作
-- **生 CDP** — Playwright/puppeteer 不使用、約1200行のコード
-- **ステルスパッチ** — Google ログイン可能（ボット検出を回避）
-- **高解像度フレーム** — DPR 対応キャプチャ、ぼやけない
-- **マウス + キーボード** — クリック、スクロール、ドラッグ、入力、本物のブラウザと同じ操作感
+レンダリングはすべて Chrome がやります。casty はフレームをターミナルに流して入力を返すだけのブリッジ（約1200行）。Playwright も puppeteer も使わず、WebSocket で生 CDP を叩いています。
 
-## なぜ casty？
+本物の Chrome なので JavaScript, CSS, Canvas, WebGL 全部動きます。ステルスパッチで Google ログインも通ります。マウスのクリック、スクロール、ドラッグ、キーボード入力 — 普通のブラウザと同じ操作ができます。
 
-従来のターミナルブラウザ（w3m, lynx, Browsh）は HTML をパースしてテキストとして再描画します。casty は異なるアプローチを取ります：Chrome がすべてをレンダリングし、casty はピクセルをターミナルに流すだけです。
+## どういうときに使う？
 
-つまり：
-- **すべての Web サイトが動く** — レンダリングの不具合や機能欠落がない
-- **SSH フレンドリー** — ヘッドレスサーバーで SSH 越しに Web ブラウジング
-- **X11/Wayland 不要** — Kitty 対応ターミナルがあれば OK
-- **ワークフローを維持** — GUI ブラウザへのコンテキストスイッチ不要
+SSH でヘッドレスサーバーに入っていて Web ページを確認したいとき、普通は `curl` か `lynx` か X11 転送しかない。casty ならターミナルを離れずに本物のブラウザが使えます。X11 も VNC も Wayland もいらない。Kitty 対応ターミナルさえあれば OK。
 
 ## インストール
 
@@ -56,7 +48,7 @@ cd casty && npm install
 
 ### 必要環境
 
-- **Kitty graphics protocol** 対応ターミナル (動作確認済み: **Ghostty**, **kitty**, **bcon**)
+- **Kitty graphics protocol** 対応ターミナル（動作確認済み: Ghostty, kitty, bcon）
 - Node.js >= 18
 - `unzip`（Chrome 自動インストールに必要）
 
@@ -73,7 +65,7 @@ casty   # ホームページを開く
 | キー | アクション |
 |------|-----------|
 | Alt+L | アドレスバー |
-| Alt+F | ヒントモード (Vimium 風) |
+| Alt+F | ヒントモード（Vimium 風） |
 | Alt+Left / Right | 戻る / 進む |
 | Alt+C | 選択テキストをコピー |
 | Ctrl+V | ペースト |
@@ -122,15 +114,27 @@ casty   # ホームページを開く
 | `format` | キャプチャ形式: `auto`, `png`, `jpeg` | `auto` (file→jpeg adaptive、inline→png) |
 | `mouseMode` | `1002` (ボタンイベント) or `1003` (全イベント) | 自動 (Ghostty→1003、他→1002) |
 
-<details>
-<summary><strong>技術詳細</strong></summary>
+## 比較
 
-1. 生 CDP WebSocket で Chrome Headless Shell を起動（`Runtime.enable` 送信不可 — Google ログインが壊れる）
-2. `Page.addScriptToEvaluateOnNewDocument` でページロード前にステルスパッチを注入
-3. ハイブリッドフレーム取得: 低解像度 Screencast で変更検知、`Page.captureScreenshot` で高解像度出力
-4. アダプティブフォーマット: 高速更新時は JPEG、静止後に PNG で精細化（ファイル転送モード）
-5. CSI 14t でターミナルピクセルサイズを検出し、自動ズーム計算
-6. 起動時にプロファイルクリーンアップ（Cookie/LocalStorage 保持、キャッシュ削除）
+| | casty | Browsh | w3m/lynx |
+|---|---|---|---|
+| エンジン | Chrome | Firefox | 独自パーサー |
+| 描画 | ピクセルそのまま | テキスト近似 | テキストのみ |
+| JavaScript | 動く | 動く | 動かない |
+| 表示方式 | Kitty graphics | 文字セル | 文字セル |
+| 依存 | Node.js + Chrome | Go + Firefox | 単体 |
+
+<details>
+<summary>技術詳細</summary>
+
+全体で約1200行の JavaScript です。中でやっていること:
+
+- chrome-headless-shell を起動して生 CDP WebSocket で通信
+- `Runtime.enable` は絶対に送らない（Google ログインが壊れる。これは苦労して発見した）
+- ステルスパッチは `Page.addScriptToEvaluateOnNewDocument` でページロード前に注入
+- フレーム取得はハイブリッド方式: 低解像度 Screencast で変更を検知して、`Page.captureScreenshot` で DPR 対応の高解像度フレームを取得
+- ファイル転送モードでは JPEG→PNG のアダプティブ切替: スクロール中や動画再生中は高速な JPEG、止まったら鮮明な PNG
+- CSI 14t でターミナルのピクセルサイズを取得して自動ズーム
 
 ```
 bin/casty          シェルラッパー（Chrome インストール/更新）
@@ -148,17 +152,6 @@ lib/bookmarks.js   ブックマーク検索
 ```
 
 </details>
-
-## 比較
-
-| | casty | Browsh | w3m/lynx |
-|---|---|---|---|
-| エンジン | 本物の Chrome | 本物の Firefox | 独自パーサー |
-| 描画 | ピクセルパーフェクト | テキスト近似 | テキストのみ |
-| JavaScript | 完全サポート | 完全サポート | なし |
-| プロトコル | Kitty graphics | 文字セル | 文字セル |
-| 依存関係 | Node.js + Chrome | Go + Firefox | スタンドアロン |
-| Google ログイン | 動作（ステルス） | ブロックされる場合あり | 非対応 |
 
 ## ライセンス
 
