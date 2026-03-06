@@ -2,7 +2,7 @@
 
 Run a real Chrome browser inside your terminal.
 
-**[日本語](README.ja.md)**
+**[Japanese](README.ja.md)**
 
 casty is not a text-mode browser like w3m or lynx. It launches headless Chrome, grabs the rendered frames over CDP, and draws them in your terminal via Kitty graphics protocol. Think of it as a remote desktop for Chrome that fits in a terminal window.
 
