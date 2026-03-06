@@ -1,48 +1,41 @@
 # casty
 
-A TTY web browser powered by Kitty graphics protocol.
+Run a real Chrome browser inside your terminal.
 
 **[日本語](README.ja.md)**
 
-casty renders full web pages in your terminal using Chrome's headless rendering, bridging the gap between a headless browser and your Kitty-compatible terminal.
+casty is not a text-mode browser. It runs an actual Chrome engine in headless mode, captures rendered frames via Chrome DevTools Protocol, and displays them in your terminal using the Kitty graphics protocol. Your terminal becomes a remote Chrome viewer.
 
 <video src="https://github.com/user-attachments/assets/552f1972-bb53-481e-9516-c36b7e5085d8" autoplay loop muted playsinline></video>
 
+## How It Works
+
 ```
-Chrome (Headless Shell)     casty              Terminal
-┌─────────────────┐      ┌─────────────────┐  ┌─────────────────┐
-│  Web rendering  │ ───→ │  High-res       │ ─→│  Kitty graphics │
-│  JS execution   │      │  capture        │  │  display        │
-│  Full browser   │ ←─── │  Input bridge   │ ←─│  Mouse/Keyboard │
-└─────────────────┘      └─────────────────┘  └─────────────────┘
+Terminal (you)          casty               Chrome (headless)
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│  Kitty       │ ←──  │  Screencast  │ ←──  │  Full web    │
+│  graphics    │      │  + hi-res    │      │  rendering   │
+│  display     │      │  capture     │      │  JS, CSS,    │
+│              │ ──→  │  Input       │ ──→  │  Canvas,     │
+│  Mouse/KB    │      │  bridge      │      │  WebGL       │
+└──────────────┘      └──────────────┘      └──────────────┘
 ```
 
-## Features
+- **Real Chrome engine** — JavaScript, CSS, Canvas, WebGL all work
+- **Raw CDP** — no Playwright, no puppeteer, ~1200 lines of code
+- **Stealth patches** — Google login works (bot detection bypassed)
+- **High-res frames** — DPR-aware capture, not blurry screencast
+- **Mouse + keyboard** — click, scroll, drag, type, just like a real browser
 
-- Full web rendering via headless Chrome (raw CDP, no Playwright)
-- Stealth patches to avoid bot detection (Google login works)
-- Kitty graphics protocol for image display
-- Mouse support (click, scroll, drag)
-- Keyboard passthrough to Chrome
-- Vimium-style hint mode (Alt+F) for keyboard navigation
-- Address bar with search (Alt+L)
-- Bookmarks (`/b` search in address bar)
-- Copy selected text / paste from clipboard
-- Auto-zoom based on terminal font size
-- Dynamic resize (SIGWINCH)
-- Configurable keybindings (`~/.casty/keys.json`)
-- Configurable settings (`~/.casty/config.json`)
-- File downloads to `~/Downloads/`
-- Loading indicator
-- Fast startup with automatic profile cleanup
+## Why casty?
 
-## Requirements
+Traditional terminal browsers (w3m, lynx, Browsh) parse and re-render HTML as text. casty takes a different approach: Chrome renders everything, casty just streams the pixels to your terminal.
 
-- **Kitty graphics protocol** compatible terminal
-- Node.js >= 18
-- `unzip` (for auto-installing Chrome Headless Shell)
-
-Tested on: **bcon**, **Ghostty**, **kitty**
+This means:
+- **Every website works** — no rendering quirks or missing features
+- **SSH-friendly** — browse the web over SSH on a headless server
+- **No X11/Wayland needed** — just a Kitty-compatible terminal
+- **Stays in your workflow** — no context switch to a GUI browser
 
 ## Installation
 
@@ -51,83 +44,65 @@ npm install -g @sanohiro/casty
 casty
 ```
 
-Or install from source:
+Or from source:
 
 ```bash
 git clone https://github.com/sanohiro/casty.git
-cd casty
-npm install
+cd casty && npm install
 ./bin/casty
 ```
 
-Chrome Headless Shell is automatically installed to `~/.casty/browsers/` on first run and kept up to date on subsequent launches. Only one version is kept at a time.
+Chrome Headless Shell is auto-installed to `~/.casty/browsers/` on first run.
+
+### Requirements
+
+- **Kitty graphics protocol** terminal (tested: **Ghostty**, **kitty**, **bcon**)
+- Node.js >= 18
+- `unzip` (for Chrome auto-install)
 
 ## Usage
 
 ```bash
 casty https://google.com
 casty https://youtube.com
-casty   # opens home page (default: casty GitHub page)
+casty   # opens home page
 ```
 
 ### Keybindings
 
 | Key | Action |
 |-----|--------|
-| Alt+L | Open address bar |
-| Alt+F | Hint mode (Vimium-style link/button selection) |
-| Alt+Left | Back |
-| Alt+Right | Forward |
+| Alt+L | Address bar |
+| Alt+F | Hint mode (Vimium-style) |
+| Alt+Left / Right | Back / Forward |
 | Alt+C | Copy selected text |
-| Ctrl+V | Paste from clipboard |
+| Ctrl+V | Paste |
 | Ctrl+Q | Quit |
-| Ctrl+C | Quit (fallback) |
 
-Customize via `~/.casty/keys.json` (file is not created automatically):
-
-```json
-{
-  "ctrl+q": "quit",
-  "alt+left": "back",
-  "alt+right": "forward",
-  "alt+l": "url_bar",
-  "alt+f": "hints",
-  "alt+c": "copy",
-  "ctrl+v": "paste"
-}
-```
-
-### Address Bar
-
-- **Alt+L** or click row 1 to focus — URL is selected, type to replace
-- **Enter** to navigate (URLs) or search (Google)
-- **`/b query`** to search bookmarks
-- **Escape** to cancel
-- **Ctrl+A** select all, **Ctrl+U** clear, **Ctrl+W** delete word
+Customize via `~/.casty/keys.json`.
 
 ### Hint Mode
 
-Press **Alt+F** to show labels on clickable and focusable elements. Type the label characters to click a link/button or focus an input field. Press **Escape** to cancel.
+**Alt+F** shows labels on clickable elements. Type the label to click. Labels use home-row keys (`a s d f j k l`).
 
-Labels use home-row keys (`a`, `s`, `d`, `f`, `j`, `k`, `l`) — single character for ≤7 elements, two characters for more (up to 49).
+### Address Bar
+
+**Alt+L** to open. Type a URL or search query. `/b query` searches bookmarks.
 
 ### Bookmarks
 
-Create `~/.casty/bookmarks.json` manually:
+Create `~/.casty/bookmarks.json`:
 
 ```json
 {
   "GitHub": "https://github.com",
-  "Google": "https://google.com",
   "YouTube": "https://youtube.com"
 }
 ```
 
-Search from the address bar with `/b query` (matches name or URL, case-insensitive).
-
 ### Configuration
 
-Customize via `~/.casty/config.json` (file is not created automatically):
+`~/.casty/config.json`:
 
 ```json
 {
@@ -141,40 +116,49 @@ Customize via `~/.casty/config.json` (file is not created automatically):
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `homeUrl` | Page opened when no URL is given | `https://github.com/sanohiro/casty` |
-| `searchUrl` | Search engine URL (query appended) | `https://www.google.com/search?q=` |
-| `transport` | Kitty image transfer: `auto`, `file`, or `inline` | `auto` (bcon/kitty→file, others→inline) |
-| `format` | Screenshot format: `auto`, `png`, or `jpeg` | `auto` (file→jpeg, inline→png) |
-| `mouseMode` | Mouse tracking mode: `1002` (button-event) or `1003` (any-event) | Auto (Ghostty→1003, others→1002) |
+| `homeUrl` | Start page | `https://github.com/sanohiro/casty` |
+| `searchUrl` | Search engine URL | `https://www.google.com/search?q=` |
+| `transport` | Image transfer: `auto`, `file`, `inline` | `auto` (bcon/kitty→file, others→inline) |
+| `format` | Capture format: `auto`, `png`, `jpeg` | `auto` (file→jpeg adaptive, inline→png) |
+| `mouseMode` | `1002` (button-event) or `1003` (any-event) | Auto (Ghostty→1003, others→1002) |
 
-## Architecture
+<details>
+<summary><strong>Technical Details</strong></summary>
+
+1. Launches Chrome Headless Shell via raw CDP WebSocket (no `Runtime.enable` — breaks Google login)
+2. Injects stealth patches via `Page.addScriptToEvaluateOnNewDocument` before page load
+3. Hybrid frame capture: low-res Screencast for change detection, `Page.captureScreenshot` for hi-res output
+4. Adaptive format: JPEG during rapid updates, PNG refinement after idle (file transfer mode)
+5. Terminal pixel size detection (CSI 14t) for automatic zoom calculation
+6. Profile cleanup on startup (keeps cookies/storage, removes caches)
 
 ```
-bin/
-  casty          # Shell wrapper (Chrome install/update)
-  casty.js       # Entry point (terminal detection, zoom, resize)
-lib/
-  browser.js     # CDP browser control (launch, screencast, capture)
-  cdp.js         # Lightweight CDP WebSocket client
-  chrome.js      # Chrome binary detection, launch, profile cleanup
-  kitty.js       # Kitty graphics protocol output (file/inline)
-  input.js       # Mouse/keyboard handling, actions
-  hints.js       # Vimium-style hint mode
-  urlbar.js      # Address/search bar
-  bookmarks.js   # Bookmark search
-  keys.js        # Configurable keybindings
-  config.js      # User configuration
+bin/casty          Shell wrapper (Chrome install/update)
+bin/casty.js       Entry point (terminal, zoom, resize)
+lib/browser.js     CDP browser control, frame capture
+lib/cdp.js         Lightweight CDP WebSocket client
+lib/chrome.js      Chrome detection, launch, profile cleanup
+lib/kitty.js       Kitty graphics protocol (file/inline)
+lib/input.js       Mouse/keyboard handling
+lib/hints.js       Vimium-style hint mode
+lib/urlbar.js      Address/search bar
+lib/config.js      User configuration
+lib/keys.js        Keybinding config
+lib/bookmarks.js   Bookmark search
 ```
 
-## How It Works
+</details>
 
-1. Launches Chrome Headless Shell via raw CDP (no Playwright, no `Runtime.enable`)
-2. Injects stealth patches before page load to avoid bot detection
-3. Uses hybrid frame capture: low-res Screencast as change detection trigger, `Page.captureScreenshot` for high-res frames
-4. Renders frames to terminal via Kitty graphics protocol
-5. Captures terminal input (raw mode) and dispatches to Chrome via CDP
-6. Auto-detects terminal pixel size (CSI 14t) for zoom calculation
-7. Cleans up profile on startup (keeps cookies/storage, removes caches) for fast launch
+## Comparison
+
+| | casty | Browsh | w3m/lynx |
+|---|---|---|---|
+| Engine | Real Chrome | Real Firefox | Custom parser |
+| Rendering | Pixel-perfect | Text approximation | Text only |
+| JavaScript | Full support | Full support | None |
+| Protocol | Kitty graphics | Character cells | Character cells |
+| Dependencies | Node.js + Chrome | Go + Firefox | Standalone |
+| Google login | Works (stealth) | May be blocked | N/A |
 
 ## License
 
