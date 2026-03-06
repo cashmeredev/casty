@@ -2,8 +2,16 @@
 // casty - TTY web browser using raw CDP and Kitty graphics protocol
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// --version / -v
+if (process.argv[2] === '--version' || process.argv[2] === '-v') {
+  const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'));
+  console.log(`casty ${pkg.version}`);
+  process.exit(0);
+}
 
 // Ensure Chrome is installed (skip if launched from bin/casty shell script)
 if (!process.env.CASTY_ENSURE_CHROME) {
