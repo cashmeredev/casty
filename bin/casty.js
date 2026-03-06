@@ -149,10 +149,11 @@ async function main() {
 
   // Frame callback for screencast / captureScreenshot
   // sendFrame includes cursor positioning (single write)
+  let urlBar = null;
   function onFrame(data) {
     if (renderPaused) return;
     sendFrame(data);
-    urlBar.renderIfDirty();
+    if (urlBar) urlBar.renderIfDirty();
   }
 
   // Phase 3: Start screencast
@@ -163,7 +164,7 @@ async function main() {
     onFrame,
   });
 
-  const urlBar = startInputHandling(client, cssCellW, cssCellH, bindings, pauseRender, forceCapture);
+  urlBar = startInputHandling(client, cssCellW, cssCellH, bindings, pauseRender, forceCapture);
   urlBar.render();
 
   // Force capture on page load events (debounced — multiple events fire close together)
