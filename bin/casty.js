@@ -27,7 +27,7 @@ if (!process.env.CASTY_ENSURE_CHROME) {
 }
 
 import { startBrowser, setupPage, startScreencast, stopScreencast } from '../lib/browser.js';
-import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport } from '../lib/kitty.js';
+import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport, setDisplaySize, disableDedup } from '../lib/kitty.js';
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
 import { loadKeyBindings } from '../lib/keys.js';
 import { loadConfig } from '../lib/config.js';
@@ -97,10 +97,14 @@ async function getTermInfo({ keepAlive = false } = {}) {
 
   const pixelSize = await queryTermPixelSize({ keepAlive });
   if (pixelSize) {
-    const cellWidth = pixelSize.width / cols;
-    const cellHeight = pixelSize.height / rows;
+    // Align to cell boundaries: floor cell size, then multiply back
+    // This ensures image pixels == display pixels (no GPU interpolation blur)
+    const cellWidth = Math.floor(pixelSize.width / cols);
+    const cellHeight = Math.floor(pixelSize.height / rows);
+    const width = cellWidth * cols;
+    const height = cellHeight * rows;
     const zoom = calcZoom(cellWidth);
-    return { cols, rows, width: pixelSize.width, height: pixelSize.height, cellWidth, cellHeight, zoom };
+    return { cols, rows, width, height, cellWidth, cellHeight, zoom };
   }
 
   const cellWidth = parseInt(process.env.CASTY_CELL_WIDTH) || 10;
@@ -122,8 +126,9 @@ async function main() {
   const browser = await browserP;
 
   // Reserve line 1 for URL bar, use the rest for browser display
-  const barHeight = Math.round(term.cellHeight);
+  const barHeight = term.cellHeight;
   const viewHeight = term.height - barHeight;
+  setDisplaySize(term.cols, term.rows - 1);
 
   // Phase 2: CDP connection + page setup
   const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight });
@@ -223,25 +228,64 @@ async function main() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(handleResize, 150);
   });
+  // Direct screenshot — bypasses screencast's capturing flag
+  const screenshotOpts = { format: screenshotFormat, optimizeForSpeed: true, captureBeyondViewport: false };
+  if (screenshotFormat === 'jpeg') screenshotOpts.quality = 85;
+  async function directCapture() {
+    try {
+      const { data } = await client.send('Page.captureScreenshot', screenshotOpts);
+      if (data) onFrame(data);
+    } catch {}
+  }
+
   async function handleResize() {
     if (resizing) { pendingResize = true; return; }
     resizing = true;
     try {
+      // Stop old screencast FIRST to prevent stale frames
+      await stopScreencast(client, screencastCleanup);
+
       const t = await getTermInfo({ keepAlive: true });
-      const vh = t.height - Math.round(t.cellHeight);
+      const vh = t.height - t.cellHeight;
       const cw = Math.round(t.width / t.zoom);
       const ch = Math.round(vh / t.zoom);
+      setDisplaySize(t.cols, t.rows - 1);
       console.error(`casty: resize ${cw}x${ch} (dev:${t.width}x${vh}) zoom:${t.zoom.toFixed(2)}`);
 
       urlBar.updateCellSize(t.cellWidth, t.cellHeight);
       clearScreen();
       resetFrameCache();
+      disableDedup(3000); // Force re-send for 3s (bcon may not display first frame)
 
-      await stopScreencast(client, screencastCleanup);
       await client.send('Emulation.setDeviceMetricsOverride', {
         width: cw, height: ch, deviceScaleFactor: t.zoom, mobile: false,
       });
 
+      // Wait for Chrome to finish re-rendering by watching for a screencast frame
+      await new Promise(resolve => {
+        const onFirstFrame = ({ sessionId }) => {
+          client.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+          client.removeListener('Page.screencastFrame', onFirstFrame);
+          resolve();
+        };
+        client.on('Page.screencastFrame', onFirstFrame);
+        client.send('Page.startScreencast', {
+          format: 'jpeg', quality: 10,
+          maxWidth: Math.round(cw / 4), maxHeight: Math.round(ch / 4),
+          everyNthFrame: 1,
+        }).catch(() => resolve());
+        setTimeout(() => {
+          client.removeListener('Page.screencastFrame', onFirstFrame);
+          resolve();
+        }, 2000);
+      });
+      await client.send('Page.stopScreencast').catch(() => {});
+
+      // Capture hi-res frame (Chrome has finished rendering)
+      await directCapture();
+      urlBar.render();
+
+      // Restart screencast for ongoing change detection
       ({ forceCapture, cleanup: screencastCleanup } = await startScreencast(client, {
         width: cw,
         height: ch,
