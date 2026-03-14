@@ -218,6 +218,7 @@ async function main() {
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
 
   // SIGWINCH: Follow resize + font size changes
   // Debounced (150ms) + guarded with pending flag to catch late resizes
