@@ -134,13 +134,14 @@ install_chromium() {
   echo "casty: Installed Chrome Headless Shell ${version}" >&2
 }
 
-# 古いブラウザバージョンを削除 (最新1つだけ残す)
+# 古いブラウザバージョンを削除 (最新2つを残す)
+# Running casty may still use the previous version, so keep 2 to avoid
+# breaking a live session. The older one gets cleaned up on next update.
 cleanup_old_browsers() {
-  local count=$(ls -d "$BROWSERS_DIR"/chrome-headless-shell-*/ 2>/dev/null | wc -l)
-  [ "$count" -le 1 ] && return
-  # 最も古いディレクトリを削除
-  local oldest=$(ls -t -d "$BROWSERS_DIR"/chrome-headless-shell-*/ 2>/dev/null | tail -1)
-  [ -n "$oldest" ] && rm -rf "$oldest"
+  local dirs=$(ls -t -d "$BROWSERS_DIR"/chrome-headless-shell-*/ 2>/dev/null)
+  local count=$(echo "$dirs" | wc -l)
+  [ "$count" -le 2 ] && return
+  echo "$dirs" | tail -n +3 | while read -r d; do rm -rf "$d"; done
 }
 
 # 初回: ブラウザがなければインストール (ブロッキング)
