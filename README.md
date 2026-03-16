@@ -21,7 +21,7 @@ Terminal (you)          casty               Chrome (headless)
 └──────────────┘      └──────────────┘      └──────────────┘
 ```
 
-Chrome does all the rendering. casty is just a bridge (~1200 lines) that streams frames to your terminal and sends input back. No Playwright, no puppeteer — raw CDP over WebSocket.
+Chrome does all the rendering. casty is just a bridge (~2300 lines) that streams frames to your terminal and sends input back. No Playwright, no puppeteer — raw CDP over WebSocket.
 
 Since it's real Chrome, JavaScript, CSS, Canvas, and WebGL all work. Google login works too (stealth patches bypass bot detection). Mouse clicks, scrolling, dragging, typing — everything you'd expect.
 

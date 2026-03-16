@@ -23,7 +23,7 @@ Chrome (headless-shell)      casty                Terminal (Ghostty/bcon/kitty)
 
 Key points:
 - Chrome does all rendering, JS execution, and WebRTC
-- casty is just a screen + input bridge (~1200 lines)
+- casty is just a screen + input bridge (~2300 lines)
 - Raw CDP via `ws` package (no Playwright runtime dependency)
 - `Runtime.enable` must never be sent (breaks Google login)
 

@@ -21,7 +21,7 @@ casty は w3m や lynx のようなテキストブラウザではありません
 └──────────────┘      └──────────────┘      └──────────────┘
 ```
 
-レンダリングはすべて Chrome がやります。casty はフレームをターミナルに流して入力を返すだけのブリッジ（約1200行）。Playwright も puppeteer も使わず、WebSocket で生 CDP を叩いています。
+レンダリングはすべて Chrome がやります。casty はフレームをターミナルに流して入力を返すだけのブリッジ（約2300行）。Playwright も puppeteer も使わず、WebSocket で生 CDP を叩いています。
 
 本物の Chrome なので JavaScript, CSS, Canvas, WebGL 全部動きます。ステルスパッチで Google ログインも通ります。マウスのクリック、スクロール、ドラッグ、キーボード入力 — 普通のブラウザと同じ操作ができます。
 
@@ -127,7 +127,7 @@ casty   # ホームページを開く
 <details>
 <summary>技術詳細</summary>
 
-全体で約1200行の JavaScript です。中でやっていること:
+全体で約2300行の JavaScript です。中でやっていること:
 
 - chrome-headless-shell を起動して生 CDP WebSocket で通信
 - `Runtime.enable` は絶対に送らない（Google ログインが壊れる。これは苦労して発見した）
