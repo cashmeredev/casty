@@ -153,6 +153,21 @@ lib/bookmarks.js   ブックマーク検索
 
 </details>
 
+## トラブルシューティング
+
+casty が起動しない、または Chrome がクラッシュする場合、ブラウザキャッシュを削除してください：
+
+```bash
+rm -rf ~/.casty/browsers
+casty  # Chrome が自動で再ダウンロードされます
+```
+
+すべての設定とプロファイルをリセットするには：
+
+```bash
+rm -rf ~/.casty
+```
+
 ## ライセンス
 
 MIT

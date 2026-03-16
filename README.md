@@ -153,6 +153,21 @@ lib/bookmarks.js   Bookmark search
 
 </details>
 
+## Troubleshooting
+
+If casty fails to start or Chrome crashes, try removing the browser cache:
+
+```bash
+rm -rf ~/.casty/browsers
+casty  # re-downloads Chrome automatically
+```
+
+To reset all settings and profile data:
+
+```bash
+rm -rf ~/.casty
+```
+
 ## License
 
 MIT
