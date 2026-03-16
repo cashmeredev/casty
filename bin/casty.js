@@ -13,6 +13,35 @@ if (process.argv[2] === '--version' || process.argv[2] === '-v') {
   process.exit(0);
 }
 
+// --help / -h
+if (process.argv[2] === '--help' || process.argv[2] === '-h') {
+  console.log(`casty - A real Chrome browser in your terminal
+
+Usage: casty [url] [options]
+
+Options:
+  --help, -h       Show this help
+  --version, -v    Show version
+
+Key bindings:
+  Alt+L            Address bar
+  Alt+F            Hint mode (Vimium-style link navigation)
+  Alt+C            Copy selected text
+  Ctrl+V           Paste from clipboard
+  Alt+Left/Right   Back / Forward
+  Ctrl+Q           Quit
+
+Address bar:
+  Type a URL or search query, then Enter
+  /b [query]       Search bookmarks
+
+Config: ~/.casty/config.json
+Keys:   ~/.casty/keys.json
+
+https://github.com/sanohiro/casty`);
+  process.exit(0);
+}
+
 // Ensure Chrome is installed (skip if launched from bin/casty shell script)
 if (!process.env.CASTY_ENSURE_CHROME) {
   const __bin = dirname(fileURLToPath(import.meta.url));
