@@ -52,6 +52,15 @@ cd casty && npm install
 - Node.js >= 18
 - `unzip`（Chrome 自動インストールに必要）
 
+### tmux
+
+tmux 内で casty を使う場合は、Kitty graphics のエスケープシーケンスを
+ターミナルまで通すために passthrough を有効にしてください:
+
+```tmux
+set -g allow-passthrough on
+```
+
 ## 使い方
 
 ```bash

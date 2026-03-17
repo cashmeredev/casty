@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "start": "./bin/casty",
+    "test": "node --test",
     "postinstall": "echo 'Run casty to auto-install Chrome Headless Shell to ~/.casty/browsers/'"
   },
   "keywords": [
