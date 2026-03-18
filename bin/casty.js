@@ -60,6 +60,7 @@ import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanu
 import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
 import { loadKeyBindings } from '../lib/keys.js';
 import { loadConfig } from '../lib/config.js';
+import { startMedia } from '../lib/media.js';
 
 const config = loadConfig();
 const bindings = loadKeyBindings();
@@ -148,11 +149,13 @@ async function getTermInfo({ keepAlive = false } = {}) {
 }
 
 async function main() {
-  // Phase 1: Launch Chrome and get terminal info in parallel
+  // Phase 1: Launch Chrome, get terminal info, and start media in parallel
   // getTermInfo() must complete fully (prevent CSI 14t response leak)
   const browserP = startBrowser();
+  const mediaP = config.fakeMedia === 'device' ? startMedia(config) : null;
   const term = await getTermInfo();
   const browser = await browserP;
+  const media = mediaP ? await mediaP : null;
 
   // Reserve line 1 for URL bar, use the rest for browser display
   const barHeight = term.cellHeight;
@@ -160,7 +163,7 @@ async function main() {
   setDisplaySize(term.cols, term.rows - 1);
 
   // Phase 2: CDP connection + page setup
-  const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight });
+  const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight, mediaPort: media?.port || 0 });
   const chromeProcess = browser.proc;
 
   // Log WebSocket errors to stderr (prevent unhandled crash)
@@ -237,6 +240,7 @@ async function main() {
     } catch {}
     client.close();
     chromeProcess.kill();
+    media?.cleanup();
     disableMouse();
     showCursor();
     try { process.stdin.setRawMode(false); } catch {}
