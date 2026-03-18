@@ -52,6 +52,15 @@ Chrome Headless Shell is auto-installed to `~/.casty/browsers/` on first run.
 - Node.js >= 18
 - `unzip` (for Chrome auto-install)
 
+### tmux
+
+If you run casty inside tmux, enable passthrough so Kitty graphics escape
+sequences can reach your terminal:
+
+```tmux
+set -g allow-passthrough on
+```
+
 ## Usage
 
 ```bash
