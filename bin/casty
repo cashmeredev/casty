@@ -115,7 +115,12 @@ install_chromium() {
   mkdir -p "$BROWSERS_DIR"
   # zip 内は chrome-headless-shell-<platform>/ ディレクトリに入っている
   local tmp_dir=$(mktemp -d /tmp/casty-extract-XXXXXX)
-  unzip -q "$tmp_zip" -d "$tmp_dir" 2>/dev/null
+  if ! unzip -q "$tmp_zip" -d "$tmp_dir" 2>/dev/null; then
+    rm -f "$tmp_zip"
+    rm -rf "$tmp_dir"
+    echo "casty: Extraction failed (disk full?)" >&2
+    return 1
+  fi
   rm -f "$tmp_zip"
 
   # 展開されたディレクトリを見つけてリネーム
@@ -129,6 +134,13 @@ install_chromium() {
   mv "$extracted" "$dest_dir"
   rm -rf "$tmp_dir"
   chmod +x "$dest_dir/chrome-headless-shell"
+
+  # Verify binary is functional (catches truncated/corrupt downloads)
+  if ! "$dest_dir/chrome-headless-shell" --version &>/dev/null; then
+    echo "casty: Downloaded headless-shell is broken, removing..." >&2
+    rm -rf "$dest_dir"
+    return 1
+  fi
 
   touch "$STAMP"
   echo "casty: Installed Chrome Headless Shell ${version}" >&2
