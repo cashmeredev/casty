@@ -166,6 +166,19 @@ lib/bookmarks.js   Bookmark search
 
 ## Troubleshooting
 
+### No audio on YouTube (Ubuntu Server)
+
+Chrome plays audio directly through the system audio server. If there's no sound:
+
+```bash
+sudo apt install pulseaudio
+sudo usermod -aG audio $USER
+# Log out and back in, then:
+pulseaudio --start
+```
+
+### Chrome crashes
+
 If casty fails to start or Chrome crashes, try removing the browser cache:
 
 ```bash

@@ -166,6 +166,19 @@ lib/bookmarks.js   ブックマーク検索
 
 ## トラブルシューティング
 
+### YouTube で音が出ない（Ubuntu Server）
+
+Chrome はシステムのオーディオサーバーを通じて直接音声を再生します。音が出ない場合：
+
+```bash
+sudo apt install pulseaudio
+sudo usermod -aG audio $USER
+# ログアウトして再ログイン後：
+pulseaudio --start
+```
+
+### Chrome がクラッシュする
+
 casty が起動しない、または Chrome がクラッシュする場合、ブラウザキャッシュを削除してください：
 
 ```bash
