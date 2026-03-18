@@ -35,7 +35,7 @@ If you're working over SSH on a headless server and need to check a web page, yo
 
 ![Google Meet on casty](docs/screenshot-meet.png)
 
-With `"media": true` in `~/.casty/config.json`, casty can capture your camera and microphone via ffmpeg and stream them to WebRTC sites like Google Meet, Zoom, etc. Requires `ffmpeg` installed. Background effects are not available since the video is captured directly from the device.
+Camera and microphone can be streamed to WebRTC sites like Google Meet, Zoom, etc. via ffmpeg. Requires `ffmpeg` installed. Background effects are not available since the video is captured directly from the device. See [Configuration](#configuration) to enable.
 
 ## Installation
 
@@ -130,6 +130,7 @@ Create `~/.casty/bookmarks.json`:
 | `transport` | Image transfer: `auto`, `file`, `inline` | `auto` (bcon/kitty→file, others→inline) |
 | `format` | Capture format: `auto`, `png`, `jpeg` | `auto` (file→jpeg adaptive, inline→png) |
 | `mouseMode` | `1002` (button-event) or `1003` (any-event) | Auto (Ghostty→1003, others→1002) |
+| `media` | Enable camera/mic for WebRTC (experimental, requires `ffmpeg`) | `false` |
 
 ## Comparison
 
