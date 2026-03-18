@@ -152,7 +152,7 @@ async function main() {
   // Phase 1: Launch Chrome, get terminal info, and start media in parallel
   // getTermInfo() must complete fully (prevent CSI 14t response leak)
   const browserP = startBrowser();
-  const mediaP = config.fakeMedia === 'device' ? startMedia(config) : null;
+  const mediaP = config.media ? startMedia(config) : null;
   const term = await getTermInfo();
   const browser = await browserP;
   const media = mediaP ? await mediaP : null;
