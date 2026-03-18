@@ -31,6 +31,12 @@ Since it's real Chrome, JavaScript, CSS, Canvas, and WebGL all work. Google logi
 
 If you're working over SSH on a headless server and need to check a web page, your options are usually `curl`, `lynx`, or forwarding X11. casty gives you an actual browser without leaving the terminal. No X11, no VNC, no Wayland — just a Kitty-compatible terminal.
 
+### Google Meet with camera & mic (experimental)
+
+![Google Meet on casty](docs/screenshot-meet.png)
+
+With `"media": true` in `~/.casty/config.json`, casty can capture your camera and microphone via ffmpeg and stream them to WebRTC sites like Google Meet, Zoom, etc. Requires `ffmpeg` installed. Background effects are not available since the video is captured directly from the device.
+
 ## Installation
 
 ```bash

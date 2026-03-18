@@ -31,6 +31,12 @@ casty は w3m や lynx のようなテキストブラウザではありません
 
 SSH でヘッドレスサーバーに入っていて Web ページを確認したいとき、普通は `curl` か `lynx` か X11 転送しかない。casty ならターミナルを離れずに本物のブラウザが使えます。X11 も VNC も Wayland もいらない。Kitty 対応ターミナルさえあれば OK。
 
+### Google Meet でカメラ＆マイク（実験的）
+
+![casty で Google Meet](docs/screenshot-meet.png)
+
+`~/.casty/config.json` に `"media": true` を設定すると、ffmpeg 経由でカメラとマイクをキャプチャし、Google Meet や Zoom 等の WebRTC サイトで使えます。`ffmpeg` のインストールが必要です。映像はデバイスから直接取得するため、背景エフェクトは使えません。
+
 ## インストール
 
 ```bash
