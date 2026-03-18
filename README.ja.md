@@ -6,6 +6,8 @@
 
 casty は w3m や lynx のようなテキストブラウザではありません。ヘッドレス Chrome を起動し、CDP でレンダリング結果を取得して、Kitty graphics protocol でターミナルに描画します。Chrome のリモートデスクトップがターミナルに収まった感じです。
 
+![Ghostty 上で動作する casty](docs/screenshot-ghostty.png)
+
 <video src="https://github.com/user-attachments/assets/552f1972-bb53-481e-9516-c36b7e5085d8" autoplay loop muted playsinline></video>
 
 ## 仕組み
