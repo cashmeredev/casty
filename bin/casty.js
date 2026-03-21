@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 // casty - TTY web browser using raw CDP and Kitty graphics protocol
 
+// Handle stdout/stderr write errors (SSH disconnect, terminal close, etc.)
+process.stdout.on('error', (err) => {
+  if (err.code === 'EIO' || err.code === 'EPIPE') process.exit(0);
+});
+process.stderr.on('error', () => {});
+
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
