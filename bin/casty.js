@@ -78,10 +78,10 @@ const bindings = loadKeyBindings();
 // a sub-rectangle of its own screen and drive it over a Unix socket (--ipc),
 // instead of casty owning the whole terminal.
 function parseArgs(argv) {
-  const o = { embed: false, url: null, ipc: null, imageId: null,
+  const o = { embed: false, url: null, ipc: null, imageId: null, imageIdB: null,
               cols: null, rows: null, top: null, left: null, width: null, height: null };
-  const valFlag = { '--ipc': 'ipc', '--image-id': 'imageId', '--cols': 'cols',
-                    '--rows': 'rows', '--top': 'top', '--left': 'left',
+  const valFlag = { '--ipc': 'ipc', '--image-id': 'imageId', '--image-id-b': 'imageIdB',
+                    '--cols': 'cols', '--rows': 'rows', '--top': 'top', '--left': 'left',
                     '--width': 'width', '--height': 'height' };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -90,7 +90,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) continue;        // unknown flag → ignore
     if (o.url === null) o.url = a;            // first positional = URL
   }
-  for (const k of ['imageId', 'cols', 'rows', 'top', 'left', 'width', 'height']) {
+  for (const k of ['imageId', 'imageIdB', 'cols', 'rows', 'top', 'left', 'width', 'height']) {
     if (o[k] != null) o[k] = parseInt(o[k], 10);
   }
   return o;
@@ -212,7 +212,7 @@ async function main() {
   const viewHeight = term.height - barHeight;
   if (embed) {
     setDisplaySize(term.cols, term.rows);
-    setPlacement(embed.top || 1, embed.left || 1, embed.imageId || 1);
+    setPlacement(embed.top || 1, embed.left || 1, embed.imageId || 1, embed.imageIdB);
   } else {
     setDisplaySize(term.cols, term.rows - 1);
   }
