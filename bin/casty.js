@@ -62,15 +62,43 @@ if (!process.env.CASTY_ENSURE_CHROME) {
 }
 
 import { startBrowser, setupPage, startScreencast, stopScreencast } from '../lib/browser.js';
-import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport, setDisplaySize, disableDedup } from '../lib/kitty.js';
-import { enableMouse, disableMouse, startInputHandling } from '../lib/input.js';
+import { sendFrame, resetFrameCache, clearScreen, hideCursor, showCursor, cleanup as cleanupTmp, transport, setDisplaySize, setPlacement, disableDedup } from '../lib/kitty.js';
+import { enableMouse, disableMouse, startInputHandling, createActions } from '../lib/input.js';
+import { HintMode } from '../lib/hints.js';
+import { startIpcServer, cleanupIpc } from '../lib/ipc.js';
 import { loadKeyBindings } from '../lib/keys.js';
 import { loadConfig } from '../lib/config.js';
 import { startMedia } from '../lib/media.js';
 
 const config = loadConfig();
 const bindings = loadKeyBindings();
-const url = process.argv[2] || config.homeUrl;
+
+// Parse CLI args: a single positional URL plus optional embed-mode flags.
+// Embed mode (--embed) lets a host (e.g. kitty-graphics.el) render casty inside
+// a sub-rectangle of its own screen and drive it over a Unix socket (--ipc),
+// instead of casty owning the whole terminal.
+function parseArgs(argv) {
+  const o = { embed: false, url: null, ipc: null, imageId: null,
+              cols: null, rows: null, top: null, left: null, width: null, height: null };
+  const valFlag = { '--ipc': 'ipc', '--image-id': 'imageId', '--cols': 'cols',
+                    '--rows': 'rows', '--top': 'top', '--left': 'left',
+                    '--width': 'width', '--height': 'height' };
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--embed') { o.embed = true; continue; }
+    if (valFlag[a]) { o[valFlag[a]] = argv[++i]; continue; }
+    if (a.startsWith('--')) continue;        // unknown flag → ignore
+    if (o.url === null) o.url = a;            // first positional = URL
+  }
+  for (const k of ['imageId', 'cols', 'rows', 'top', 'left', 'width', 'height']) {
+    if (o[k] != null) o[k] = parseInt(o[k], 10);
+  }
+  return o;
+}
+
+const cli = parseArgs(process.argv);
+const embed = cli.embed ? cli : null;
+const url = cli.url || config.homeUrl;
 
 const TERM_QUERY_TIMEOUT = 1000;  // CSI 14t response timeout (ms)
 
@@ -154,19 +182,40 @@ async function getTermInfo({ keepAlive = false } = {}) {
   };
 }
 
+// Terminal info for embed mode: no CSI 14t handshake (the pty is shared with
+// the host and the reply would be intercepted).  Geometry comes from flags;
+// cell size from the host-provided env vars, falling back to width/cols.
+function embedTermInfo(e) {
+  const cols = e.cols || process.stdout.columns || 80;
+  const rows = e.rows || process.stdout.rows || 24;
+  const cellWidth = parseInt(process.env.CASTY_CELL_WIDTH)
+    || (e.width ? Math.floor(e.width / cols) : 10);
+  const cellHeight = parseInt(process.env.CASTY_CELL_HEIGHT)
+    || (e.height ? Math.floor(e.height / rows) : 20);
+  const width = e.width || cols * cellWidth;
+  const height = e.height || rows * cellHeight;
+  return { cols, rows, width, height, cellWidth, cellHeight, zoom: calcZoom(cellWidth) };
+}
+
 async function main() {
   // Phase 1: Launch Chrome, get terminal info, and start media in parallel
   // getTermInfo() must complete fully (prevent CSI 14t response leak)
   const browserP = startBrowser();
   const mediaP = config.media ? startMedia(config) : null;
-  const term = await getTermInfo();
+  const term = embed ? embedTermInfo(embed) : await getTermInfo();
   const browser = await browserP;
   const media = mediaP ? await mediaP : null;
 
-  // Reserve line 1 for URL bar, use the rest for browser display
-  const barHeight = term.cellHeight;
+  // Embed: full height (host draws its own chrome), anchor frames at the
+  // host-provided cell.  Interactive: reserve line 1 for the URL bar.
+  const barHeight = embed ? 0 : term.cellHeight;
   const viewHeight = term.height - barHeight;
-  setDisplaySize(term.cols, term.rows - 1);
+  if (embed) {
+    setDisplaySize(term.cols, term.rows);
+    setPlacement(embed.top || 1, embed.left || 1, embed.imageId || 1);
+  } else {
+    setDisplaySize(term.cols, term.rows - 1);
+  }
 
   // Phase 2: CDP connection + page setup
   const { client, cssWidth, cssHeight } = await setupPage(browser, { ...term, height: viewHeight, mediaPort: media?.port || 0 });
@@ -180,10 +229,15 @@ async function main() {
 
   let renderPaused = false;
   const pauseRender = (p = true) => { renderPaused = p; };
+  let embedIpcServer = null;
 
-  hideCursor();
-  clearScreen();
-  enableMouse();
+  // Embed mode never touches the terminal: the host owns the screen, cursor
+  // and mouse modes.  Doing any of these would corrupt the host's display.
+  if (!embed) {
+    hideCursor();
+    clearScreen();
+    enableMouse();
+  }
 
   // Mouse coordinates in device pixels
   // Chrome headless-shell ignores deviceScaleFactor for Input.dispatchMouseEvent
@@ -215,8 +269,65 @@ async function main() {
     onFrame,
   });
 
-  urlBar = startInputHandling(client, cssCellW, cssCellH, bindings, pauseRender, forceCapture);
-  urlBar.render();
+  if (embed) {
+    // Stable wrapper: forceCapture is reassigned when the screencast restarts
+    // on resize, so close over the binding rather than capturing its value.
+    const fc = () => forceCapture();
+    const hintMode = new HintMode(fc);
+    const actions = createActions(client, {
+      forceCapture: fc, cellWidth: term.cellWidth, cellHeight: term.cellHeight,
+      hintMode, topRow: 1,
+    });
+
+    // Reposition / resize the embedded frame.  top/left always update the
+    // placement; cols/rows additionally re-emulate the viewport and restart
+    // the screencast.  Always reset dedup so the next frame repaints at the
+    // new location (an unchanged page would otherwise be skipped).
+    async function setGeometry({ top, left, cols, rows }) {
+      const dimsChanged = (cols && cols !== term.cols) || (rows && rows !== term.rows);
+      setPlacement(top, left, null);
+      if (dimsChanged) {
+        term.cols = cols || term.cols;
+        term.rows = rows || term.rows;
+        term.width = term.cols * term.cellWidth;
+        term.height = term.rows * term.cellHeight;
+        setDisplaySize(term.cols, term.rows);
+        const cw = Math.round(term.width / term.zoom);
+        const ch = Math.round(term.height / term.zoom);
+        await stopScreencast(client, screencastCleanup);
+        await client.send('Emulation.setDeviceMetricsOverride', {
+          width: cw, height: ch, deviceScaleFactor: term.zoom, mobile: false,
+        });
+        ({ forceCapture, cleanup: screencastCleanup } = await startScreencast(client, {
+          width: cw, height: ch, format: screenshotFormat, onFrame,
+        }));
+      }
+      resetFrameCache();
+      disableDedup(500);
+      fc();
+    }
+
+    const handlers = {
+      navigate:       (m) => actions.navigate(m.url),
+      back:           () => actions.back(),
+      forward:        () => actions.forward(),
+      reload:         () => actions.reload(),
+      scroll:         (m) => actions.scroll(m.dx || 0, m.dy || 0, m.col, m.row),
+      key:            (m) => actions.key(m.name, m.modifiers),
+      text:           (m) => actions.text(m.string),
+      click:          (m) => actions.click(m.col, m.row, m.button),
+      mouse:          (m) => actions.mouse(m.type, m.col, m.row, m.button),
+      hints:          () => actions.hints(),
+      'hint-key':     async (m, reply) => reply({ hintActive: await actions.hintKey(m.key) }),
+      'set-geometry': (m) => setGeometry(m),
+      'get-url':      async (_m, reply) => reply({ url: await actions.getUrl() }),
+      quit:           () => process.emit('SIGINT'),
+    };
+    embedIpcServer = startIpcServer(embed.ipc, handlers);
+  } else {
+    urlBar = startInputHandling(client, cssCellW, cssCellH, bindings, pauseRender, forceCapture);
+    urlBar.render();
+  }
 
   // Force capture on page load events (debounced — multiple events fire close together)
   let delayedTimers = [];
@@ -247,10 +358,17 @@ async function main() {
     client.close();
     chromeProcess.kill();
     media?.cleanup();
-    disableMouse();
-    showCursor();
-    try { process.stdin.setRawMode(false); } catch {}
-    clearScreen();                 // Clear after everything is stopped — no re-render risk
+    if (embed) {
+      // Host owns the terminal; only tear down our own resources.  The host
+      // deletes the kitty image (by id) and restores its cursor itself.
+      if (embedIpcServer) { try { embedIpcServer.close(); } catch {} }
+      cleanupIpc(embed.ipc);
+    } else {
+      disableMouse();
+      showCursor();
+      try { process.stdin.setRawMode(false); } catch {}
+      clearScreen();               // Clear after everything is stopped — no re-render risk
+    }
     cleanupTmp();
     process.exit(0);
   }
@@ -264,10 +382,14 @@ async function main() {
   let resizeTimer = null;
   let resizing = false;
   let pendingResize = false;
-  process.on('SIGWINCH', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(handleResize, 150);
-  });
+  // Embed mode is driven by the host's `set-geometry` IPC command, not by the
+  // terminal's own SIGWINCH (the pty size is the host's, not the viewport's).
+  if (!embed) {
+    process.on('SIGWINCH', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(handleResize, 150);
+    });
+  }
   // Direct screenshot — bypasses screencast's capturing flag
   const screenshotOpts = { format: screenshotFormat, optimizeForSpeed: true, captureBeyondViewport: false };
   if (screenshotFormat === 'jpeg') screenshotOpts.quality = 85;
