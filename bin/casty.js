@@ -78,9 +78,9 @@ const bindings = loadKeyBindings();
 // a sub-rectangle of its own screen and drive it over a Unix socket (--ipc),
 // instead of casty owning the whole terminal.
 function parseArgs(argv) {
-  const o = { embed: false, url: null, ipc: null, imageId: null, imageIdB: null,
+  const o = { embed: false, url: null, ipc: null, imageId: null,
               cols: null, rows: null, top: null, left: null, width: null, height: null };
-  const valFlag = { '--ipc': 'ipc', '--image-id': 'imageId', '--image-id-b': 'imageIdB',
+  const valFlag = { '--ipc': 'ipc', '--image-id': 'imageId',
                     '--cols': 'cols', '--rows': 'rows', '--top': 'top', '--left': 'left',
                     '--width': 'width', '--height': 'height' };
   for (let i = 2; i < argv.length; i++) {
@@ -90,7 +90,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) continue;        // unknown flag → ignore
     if (o.url === null) o.url = a;            // first positional = URL
   }
-  for (const k of ['imageId', 'imageIdB', 'cols', 'rows', 'top', 'left', 'width', 'height']) {
+  for (const k of ['imageId', 'cols', 'rows', 'top', 'left', 'width', 'height']) {
     if (o[k] != null) o[k] = parseInt(o[k], 10);
   }
   return o;
@@ -212,7 +212,7 @@ async function main() {
   const viewHeight = term.height - barHeight;
   if (embed) {
     setDisplaySize(term.cols, term.rows);
-    setPlacement(embed.top || 1, embed.left || 1, embed.imageId || 1, embed.imageIdB);
+    setPlacement(embed.top || 1, embed.left || 1, embed.imageId || 1);
   } else {
     setDisplaySize(term.cols, term.rows - 1);
   }
@@ -246,9 +246,13 @@ async function main() {
   // format: auto → PNG for inline, JPEG (adaptive) for file transfer
   // jpeg mode: fast JPEG during activity, PNG refinement when static
   const fmt = config.format || 'auto';
-  const screenshotFormat = fmt === 'auto'
-    ? (transport === 'file' ? 'jpeg' : 'png')
-    : fmt;
+  // Embed mode MUST use PNG: the host (kitty-graphics.el) forwards frames into
+  // a kitty terminal, and the kitty graphics protocol only decodes RGB/RGBA/PNG
+  // -- never JPEG.  The normal file-transport default is JPEG (for bcon), which
+  // kitty cannot decode, so fast frames would fail and the image would flicker.
+  const screenshotFormat = embed
+    ? 'png'
+    : (fmt === 'auto' ? (transport === 'file' ? 'jpeg' : 'png') : fmt);
 
   console.error(`casty: ${term.width}x${term.height} cell=${term.cellWidth.toFixed(0)}x${term.cellHeight.toFixed(0)} zoom=${term.zoom.toFixed(2)} transport=${transport} format=${screenshotFormat}${screenshotFormat === 'jpeg' ? ' (adaptive)' : ''}`);
 
