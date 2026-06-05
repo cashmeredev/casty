@@ -4,6 +4,8 @@ Run a real Chrome browser inside your terminal.
 
 **[Japanese](README.ja.md)**
 
+> **Fork note.** This is [cashmeredev/casty](https://github.com/cashmeredev/casty), a fork of [sanohiro/casty](https://github.com/sanohiro/casty) that adds an **[embed mode](#embed-mode-host-embedding)** so a host program can place casty's output in its own UI and drive it over an IPC socket. It is used by [kitty-graphics.el](https://github.com/cashmeredev/kitty-graphics.el) for an inline browser inside terminal Emacs. All credit for casty itself goes to the upstream author.
+
 casty is not a text-mode browser like w3m or lynx. It launches headless Chrome, grabs the rendered frames over CDP, and draws them in your terminal via Kitty graphics protocol. Think of it as a remote desktop for Chrome that fits in a terminal window.
 
 ![casty running on Ghostty](docs/screenshot-ghostty.png)
@@ -171,6 +173,65 @@ lib/bookmarks.js   Bookmark search
 
 </details>
 
+## Embed mode (host embedding)
+
+Embed mode lets another program (a "host") place casty's output inside its own UI and drive it over an IPC socket. casty owns no terminal state in this mode — no URL bar, cursor, mouse modes, or screen clears — the host positions every frame.
+
+Launch it with `--embed`:
+
+```bash
+casty --embed --ipc /tmp/casty.sock --image-id 1 \
+  --cols 80 --rows 24 --top 1 --left 1 --width 960 --height 480 \
+  https://example.com
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--embed` | Embed mode: no terminal ownership, IPC-driven |
+| `--ipc <path>` | Unix socket for newline-delimited JSON commands |
+| `--image-id <n>` | Kitty image id to draw into |
+| `--cols`, `--rows` | Content area size in cells |
+| `--top`, `--left` | 1-based terminal anchor of the top-left cell |
+| `--width`, `--height` | Content area in pixels (overrides cols/rows × cell size) |
+
+Environment:
+
+- `CASTY_CHROME` — path to a Chromium-based browser to drive instead of the bundled Chrome Headless Shell.
+- `CASTY_CELL_WIDTH`, `CASTY_CELL_HEIGHT` — the host's font cell metrics in pixels.
+
+Frames are sent as **PNG** over the Kitty graphics protocol using a single image id, staged via file transfer through `/dev/shm` to keep the pty cheap.
+
+### IPC protocol
+
+The host writes newline-delimited JSON objects to the `--ipc` socket. Most commands are fire-and-forget; two return a JSON reply on the same socket. Coordinates are 1-based cell positions.
+
+| Command | Fields | Reply |
+| --- | --- | --- |
+| `navigate` | `url` | — |
+| `back` / `forward` / `reload` | — | — |
+| `scroll` | `dx`, `dy`, opt. `col`, `row` | — |
+| `key` | `name`, opt. `modifiers[]` | — |
+| `text` | `string` | — |
+| `click` | `col`, `row`, opt. `button` | — |
+| `mouse` | `type`, `col`, `row`, opt. `button` | — |
+| `hints` | — | — |
+| `hint-key` | `key` | `{"hintActive":<bool>}` |
+| `set-geometry` | opt. `top`, `left`, `cols`, `rows` | — |
+| `get-url` | — | `{"url":"<current>"}` |
+| `quit` | — | — |
+
+Example session:
+
+```
+{"cmd":"navigate","url":"https://example.com"}
+{"cmd":"scroll","dy":300}
+{"cmd":"click","col":10,"row":5}
+{"cmd":"get-url"}        ->  {"url":"https://example.com/"}
+{"cmd":"quit"}
+```
+
+[kitty-graphics.el](https://github.com/cashmeredev/kitty-graphics.el) is the reference embedder (see its `kitty-gfx-browse`).
+
 ## Troubleshooting
 
 ### No audio on YouTube (Ubuntu Server)
@@ -201,4 +262,4 @@ rm -rf ~/.casty
 
 ## License
 
-MIT
+MIT. casty is by Hironobu Sano ([sanohiro/casty](https://github.com/sanohiro/casty)); this fork ([cashmeredev/casty](https://github.com/cashmeredev/casty)) adds embed mode under the same license.
