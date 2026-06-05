@@ -278,8 +278,13 @@ async function main() {
     // on resize, so close over the binding rather than capturing its value.
     const fc = () => forceCapture();
     const hintMode = new HintMode(fc);
+    // Click/scroll coordinates are CSS pixels relative to the emulated viewport
+    // (cssWidth x cssHeight spanning cols x rows cells), NOT device pixels, so
+    // pass CSS pixels per cell.  Otherwise clicks drift by the zoom factor.
     const actions = createActions(client, {
-      forceCapture: fc, cellWidth: term.cellWidth, cellHeight: term.cellHeight,
+      forceCapture: fc,
+      cellWidth: cssWidth / term.cols,
+      cellHeight: cssHeight / term.rows,
       hintMode, topRow: 1,
     });
 
@@ -305,6 +310,8 @@ async function main() {
         ({ forceCapture, cleanup: screencastCleanup } = await startScreencast(client, {
           width: cw, height: ch, format: screenshotFormat, onFrame,
         }));
+        // Keep click/scroll mapping in sync with the new CSS viewport.
+        actions.setCellSize(cw / term.cols, ch / term.rows);
       }
       resetFrameCache();
       disableDedup(500);
